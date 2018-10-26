@@ -1,0 +1,12 @@
+Package: NCBR.RTools
+Version: 1.0
+Title: NCBR Analysis Tools
+Author: Susan Huse
+Description: Provides a series of analysis tools for biomedical research at FNLCR NCBR
+             including convenience tools for standard methods used on pipeliner data
+Depends: R (>= 3.1.0)
+Imports: 
+    limma, 
+    Biobase, 
+    edgeR
+RoxygenNote: 6.1.0
