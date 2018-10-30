@@ -56,5 +56,4 @@ head2 <- function(obj, x=5, y=5) {
   }
 
   # exit
-  return(TRUE)
 }

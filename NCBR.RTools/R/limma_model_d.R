@@ -11,8 +11,12 @@
 #'  and runs the model design, fits the model, and runs eBayes.  
 #'  Returns the MArrayLM object ("fit")
 #'  
+#'  If d is a design matrix, it will be input directly into limma:fit
+#'  If d is a formula (set isFormula = TRUE), a design matrix will be created using model.matrix(f)
+#'  
 #' @param x ExpressionSet (can be created with make_filtered_eset)
-#' @param f formula
+#' @param d design matrix or a formula to be used to create one.
+#' @param isFormula boolean specifying if d is a design matrix (isFormula=FALSE) or a formula (default=FALSE)
 #' 
 #' @return MArrayLM object ("fit")
 #'
@@ -36,8 +40,12 @@
 #' myFit <- limma_model(x=eset, f=myF)
 #' 
 #' @export
-limma_model_f <- function(x, f) {
-  design <- model.matrix(f)
+limma_model_d <- function(x, d, isFormula=FALSE) {
+  if(isFormula) {
+    design <- model.matrix(d)
+  } else {
+    design <- d
+  }
   fit <- lmFit(x, design)
   fit <- eBayes(fit)
   return(fit)
