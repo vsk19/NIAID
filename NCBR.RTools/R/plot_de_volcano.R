@@ -40,7 +40,8 @@ plot_de_volcano <- function(f, coef, title="Volcano Plot", maxq=0.1, minLFC=1, s
   cnt_plus <- sum(x$logq >= minFDR & x$logFC >= minLFC)
   cnt_neg <- sum(x$logq >= minFDR & x$logFC <= -minLFC)
   if(showsub) {
-    subtitle <- paste0(sum(sigs), " DE genes (Pos=", cnt_plus, ", Neg=", cnt_neg, ")")
+    subtitle <- paste0(sum(sigs), " DE genes: ", cnt_plus, " Pos and ", cnt_neg, " Neg",
+                       " (FDR>", maxq, ", log2FC>", minLFC, ")")
   } else {
     subtitle <- NULL
   }

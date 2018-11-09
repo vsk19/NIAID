@@ -63,6 +63,6 @@ topTable2Excel <- function(theFit, theCoef, theFile, theSheet="topTable", q=0.05
   if(excel){
     write.xlsx2(myDF, file=theFile, sheetName=theSheet, append=append, col.names=TRUE, row.names=TRUE)
   } else {
-    write.csv(myDF, file=theFile, quote=FALSE, col.names=TRUE, row.names=TRUE)
+    write.csv(myDF, file=theFile, quote=FALSE, col.names=NA, row.names=TRUE)
   }
 }

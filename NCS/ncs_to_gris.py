@@ -33,6 +33,7 @@ import os
 import re
 import datetime
 import pandas as pd
+import numpy as np
 from yaml import load
 import argparse
 from argparse import RawTextHelpFormatter
@@ -68,27 +69,28 @@ def compare_keys(x,y):
 
 
 # Create the prompt to be used by get_bsi_data
-def bsi_prompt_text(bsifile, config_fname, idname):
+def bsi_prompt_text(bsifile, idname):
     return('\n'.join(["", stars, stars, "Please log into BSI and create a new report that includes:",
-    "Subject ID", "PhenotipsId", "CRIS Order #", "Phenotips Family ID\n",
+    "Subject ID", "PhenotipsId", "CRIS Order #", "Phenotips Family ID", "Batch Sent\n",
     "Use the following {}s as search criteria ({} =@(like) *inserted IDs*).".format(idname, idname),
-    'Run the report and save the file as: "{}" in the same directory as {}'.format(bsifile, config_fname),
+    'Run the report and save the file as: "{}" in the same directory as {}'.format(bsifile, config['config_fname']),
     '\nPlease enter "y" to print out the list of {}s to use, or "q" to quit.\n'.format(idname)]))
 
 # Get the Phenotips information for the subjects in this batch and previous batches
-def get_bsi_data(f1, f2, config_fname, mrns, added, dropped):
+def get_bsi_data(f1, f2, mrns, added, dropped):
 
     # Prompt and import the first set of BSI data - subjects released in this batch
     if not testmode:
-        pause_for_input(bsi_prompt_text(f1, config_fname, "Subject ID"), 'y', 'q', log)
+        pause_for_input(bsi_prompt_text(f1, "Subject ID"), 'y', 'q', log)
         print("\n" + "\n".join(mrns))
         pause_for_input('\nPlease enter "y" to continue when you have created {}, or "q" to quit.\n'.format(f1), 'y','q', log)
 
     bsi1 = import_bsi_phenotips(f1)
+    #print("BSI1:\n{}".format(bsi1.head()))
     
     # Prompt and import the first set of BSI data - subjects released in previous batches
     if not testmode:
-        pause_for_input(bsi_prompt_text(f2, config_fname, "CRIS Order #"), 'y', 'q', log)
+        pause_for_input(bsi_prompt_text(f2, "CRIS Order #"), 'y', 'q', log)
         added = pd.DataFrame(added)
         dropped = pd.DataFrame(dropped)
         both = pd.concat([pd.DataFrame(added), pd.DataFrame(dropped)])
@@ -96,9 +98,31 @@ def get_bsi_data(f1, f2, config_fname, mrns, added, dropped):
         pause_for_input('\nPlease enter "y" to continue when you have created this file, {}, or "q" to quit.\n'.format(f2), 'y','q', log)
 
     bsi2 = import_bsi_phenotips(f2)
+    #print("BSI2:\n{}".format(bsi2.head()))
     
     bsi = pd.concat([bsi1,bsi2], sort=True)
     bsi.drop_duplicates(inplace=True)
+    bsi = bsi.set_index(['Subject_ID'])
+    #print("BSI:\n{}".format(bsi.head()))
+    return(bsi)
+
+# Create the prompt to be used by get_bsi_exomes
+def bsi_exomes_prompt_text(bsifile, idname):
+    return('\n'.join(["", stars, stars, "Please log into BSI and create a new report that includes:",
+    "CRIS Order #", "CIDR Exome ID", "Batch Received\n",
+    "Use the following {}s as search criteria ({} =@(like) *inserted IDs*).".format(idname, idname),
+    'Run the report and save the file as: "{}" in the same directory as {}'.format(bsifile, config['config_fname']),
+    '\nPlease enter "y" to print out the list of {}s to use, or "q" to quit.\n'.format(idname)]))
+
+# Get the CIDR_Exome_ID information for the subjects missing exome IDs
+def get_bsi_exomes(f3, ids):
+    # Prompt and import the set of missing data 
+    if not testmode:
+        pause_for_input(bsi_exomes_prompt_text(f3, "CRIS Order #"), 'y', 'q', log)
+        print("\n" + "\n".join(ids))
+        pause_for_input('\nPlease enter "y" to continue when you have created {}, or "q" to quit.\n'.format(f3), 'y','q', log)
+
+    bsi = import_bsi_exomes(f3)
     bsi = bsi.set_index(['Subject_ID'])
 
     return(bsi)
@@ -150,9 +174,16 @@ def find_the_control(x):
 # Import pedigree information from Excel file
 def import_pedigree(f):
     test_file(f)
-
+    
     # import the data
-    ped = pd.read_excel(f)
+    # but some are csv and some are excel! 
+    if bool(re.search('.csv$', f)):
+        ped = pd.read_csv(f)
+    elif bool(re.search('.xlsx*$', f)):
+        ped = pd.read_excel(f)
+    else:
+        err_out("Error: Confused by pedigree file name {}, expecting *.csv or *.xlsx.\nExiting.".format(f), log)
+        
 
     ## Each set has a sequencing duplicate that should be removed
     theDupe = find_the_duplicate(ped)
@@ -268,7 +299,7 @@ def import_bsi_phenotips(f):
     theCols = phenotips.columns
     missing = []
 
-    for c in ['Subject ID', 'PhenotipsId', 'CRIS Order #', 'Phenotips Family ID']:
+    for c in ['Subject ID', 'PhenotipsId', 'CRIS Order #', 'Phenotips Family ID', 'Batch Sent']:
         if c not in theCols:
             missing.append(c)
 
@@ -279,12 +310,41 @@ def import_bsi_phenotips(f):
     phenotips = phenotips.rename(columns = {'Subject ID':'MRN', 
                                             'PhenotipsId':'Phenotips_ID', 
                                             'Phenotips Family ID': 'Phenotips_Family_ID',
-                                            'CRIS Order #':'Subject_ID'})
+                                            'CRIS Order #':'Subject_ID', 
+                                            'Batch Sent':'Batch_Sent'})
     
     # drop the row count column
     phenotips = phenotips.drop(columns=['OBS'])
 
     return(phenotips)
+    
+# Import the BSI CIDR Exome ID information
+def import_bsi_exomes(f):
+    test_file(f)
+
+    # import and convert to dataframe, using field names
+    exomes = pd.read_csv(f, header=2)
+
+    # Test that all necessary columns are there
+    theCols = exomes.columns
+    missing = []
+
+    for c in ['CRIS Order #', 'CIDR Exome ID', 'Batch Received']:
+        if c not in theCols:
+            missing.append(c)
+
+    if len(missing) > 0:
+        err_out("CIDR Exome ID CSV file (bsi3.csv) exported from BSI is missing required field(s):\n{}".format("\n".join(missing)), log)
+    
+    # rename the columns
+    exomes = exomes.rename(columns = {'CRIS Order #':'Subject_ID', 
+                                            'CIDR Exome ID':'CIDR_Exome_ID',
+                                            'Batch Received':'Batch_Received'})
+    
+    # drop the row count column
+    exomes = exomes.drop(columns=['OBS'])
+
+    return(exomes)
     
 ######################################
 #   
@@ -378,53 +438,75 @@ def check_family_ids(df):# (a, p):
         return(True)
 
 def create_master_df(bsi, mapping, ped):
-    print("PED:\n{}".format(ped.head()))
+    #print("PED:\n{}".format(ped.head()))
+    #print("BSI:\n{}".format(bsi.head()))
+    #print("Mapping:\n{}".format(mapping.head()))
     # Combine the BSI information and the original mapping info
     df = pd.concat([bsi, mapping], axis=1, join='outer', sort=False)
     df['Subject_ID'] = df.index
     df = df.rename(columns = {'SAMPLE_ID':'CIDR_Exome_ID'})
+    #print("DF:\n{}".format(df.head()))
 
     # Subset the ped file and merge it in
     #print("DF MRN:\n{}".format(list(df['MRN'])))
+    print("1")
     ped = ped.loc[df['MRN']]
+    print("2")
     df = pd.merge(ped, df, how='outer', left_index=True, right_on='MRN')
+    print("3")
     df.drop_duplicates(inplace=True)
+    print("4")
 
     #print("MasterDF:\n{}".format(df.head()))
     return(df)
 
 # Write out the master key for selecting all current and past family VCF data
-def write_keys(df, mrns, ped, bsidf, fmasterkey, fmrn, readmef):
+def write_keys(df, mrns, notinbatch, ped, bsidf, fmasterkey, fmrn, readmef):
     #print("Ped:\n{}".format(ped.head()))
-    #print("DF:\n{}".format(df.head()))
 
     df = df[['MRN', 'Subject_ID', 'Phenotips_ID', 'Phenotips_Family_ID', 'CIDR_Exome_ID', 'Batch']]
+    #print("DF:\n{}".format(df.head()))
 
-    # Exome IDs are missing from samples that were released in earlier batches
+    # Exome IDs for family members that were released in earlier batches
     missing = df[df['CIDR_Exome_ID'].isnull()].index
-    send_update("Missing Order Numbers:\n{}".format(missing.values.tolist()), log)
+    #print("All Missing:\n{}".format(missing))
+    
+    # for all the missing ones, remove the ones that were sent with this batch but not received
+    for i in missing:
+        if i in notinbatch:
+            missing.remove(i)
+    #print("Missing family not from current batch:\n{}".format(missing))
 
-    # Look up the missing data from the previous sample mapping files
-    found = pd.Series()
-    for i in config['previousmaps']:
-        x, ctrl = import_samplemapping(i, None, findControl=False)
-        xi = set(missing.values.tolist()) & set(x.index.values.tolist())
-        for i in xi:
-            found = found.append(x.loc[i].dropna())
-        ##SUE: once all the previous samples have been found, don't need to review older batch manifests
+    #send_update("Full list of missing family member order numbers:\n{}".format(missing.values.tolist()), log)
+    send_update("There are {} family members identified in BSI with CIDR Exome IDs that were not sent with this batch.\n".format(missing.size), log)
+    family_members = get_bsi_exomes(config['bsi3'], missing.values.tolist())
+    #print("Family Members:\n{}".format(family_members))
 
-    foundDF = df.loc[found.index.values]
-    foundDF = foundDF[['Phenotips_ID', 'Phenotips_Family_ID', 'Batch']]
-    #print("Found:\n{}".format(foundDF))
+    # Drop records without Batch Received or Exome ID
+    # Create a numeric batch number for comparison, and only keep records older than current batch
+    family_members = family_members.dropna()
+    family_members['Batch_Number'] = family_members['Batch_Received'].str.replace("BATCH0*", "")
+    family_members['Batch_Number'] = pd.to_numeric(family_members['Batch_Number'])
+    family_members = family_members[family_members['Batch_Number'] < int(batch)]
 
     # Insert the found exome IDs 
-    df.loc[found.index,'CIDR_Exome_ID'] = found
+    df.loc[family_members.index,'CIDR_Exome_ID'] = family_members['CIDR_Exome_ID']
+
     # remove extraneous data that came back from BSI, multiple orders of same person
     df = df[df['CIDR_Exome_ID'].notnull()]
 
     # Add missing not found
-    stillmissing = set(missing) - set(found.index.values)
-    #print("Still Missing:\n{}".format(stillmissing))
+    stillmissing = set(missing) - set(family_members.index.values)
+    print("Still Missing:\n{}".format(stillmissing))
+
+    # Fill in any missing batch information
+    lostbatch_idx = df[df['Batch'].isnull()].index
+    lostbatch_idx = [i.replace('\n','') for i in lostbatch_idx]
+    lostbatch = bsidf.loc[lostbatch_idx][['Batch_Sent']]
+    df = pd.concat([df,lostbatch], axis=1, join='outer', sort=False)
+    df['Batch'] = np.where(df['Batch'].isnull(), df['Batch_Sent'], df['Batch'])
+    df = df.drop(['Batch_Sent'], axis=1)
+    print("FIXED BATCH HOLES:\n{}".format(df.tail()))
 
     # For dropped MRNs, get the Phenotips ID and export
     droppedMRNs = set(mrns) - set(df['MRN'])
@@ -432,9 +514,9 @@ def write_keys(df, mrns, ped, bsidf, fmasterkey, fmrn, readmef):
     droppedPIDs.columns = ['CRIS Order #', 'Phenotips_ID', 'Phenotips_Family_ID']
     
     ## Add the text for the Found individuals
-    updateText = "Samples for {} individual(s) matching families in Batch {} were released in previous batches.\n\n".format(str(foundDF.shape[0]), batch)
-    if foundDF.shape[0] > 0:
-        updateText = updateText + "{}\n\n".format(foundDF)
+    updateText = "Samples for {} individual(s) matching families in Batch {} were released in previous batches.\n\n".format(str(family_members.shape[0]), batch)
+    if family_members.shape[0] > 0:
+        updateText = updateText + "{}\n\n".format(family_members.iloc[:,0:2])
 
     if len(droppedMRNs) + len(stillmissing) > 0:
         updateText = updateText + "Sequencing data for {} family member(s) are not yet available.\n{}\n{}\n\n".format(str(len(stillmissing) + len(droppedMRNs)), droppedPIDs.to_string(index=False), "  "+"\n  ".join(list(stillmissing)))
@@ -564,10 +646,12 @@ def main():
     # add to the config variables
     config['bsi1'] = 'bsi1.csv'
     config['bsi2'] = 'bsi2.csv'
+    config['bsi3'] = 'bsi3.csv'
     config['readme'] = 'README'
     config['masterkey'] = 'masterkey_batch' + batch + '.txt'
     config['newpedigree'] = 'seqr_ped_batch' + batch + '.txt'
     config['mrnorder'] = 'batch' + batch + '.txt'
+    config['config_fname'] = config_file.name
 
 
     # Set a few global variables
@@ -650,9 +734,7 @@ def main():
 
     # if they are different, error out until they are fixed
     # don't test ped_not_order - because these are ones released from previous batches, which we expect.
-    if sum([len(ped_not_key), len(key_not_ped), \
-            len(mapping_not_key), len(key_not_mapping), \
-            len(order_not_ped)]) > 0:
+    if sum([len(ped_not_key), len(key_not_ped), len(mapping_not_key), len(key_not_mapping)]) > 0:
             #len(ped_not_order), len(order_not_ped)]) > 0:
         send_update("Missing {} key(s) in Pedigree not Sample Key {}: ".format(str(len(ped_not_key)), ped_not_key), log)
         send_update("Missing {} key(s) in Sample Key not Pedigree {}: ".format(str(len(key_not_ped)), key_not_ped), log)
@@ -664,7 +746,11 @@ def main():
         err_out("Error: Subject_IDs in pedigree, sample mapping, sample key, and order files are inconsistent.\n" + \
                 "Please correct the Subject_IDs before continuing to process the data", log)
     else:
-        send_update("Great News!! Subject_IDs in pedigree, sample mapping, sample key, and orders files are consistent.\n", log)
+        send_update("Great News!! Subject_IDs in pedigree, sample mapping, and sample key files are consistent.\n", log)
+#    if sum(len(ped_not_order), len(order_not_ped)) > 0:
+#        send_update("Samples have been released with these data that are not in the current BSI Order.\n" + \
+#        "Please update the batch_orders.csv file including the CIDR IDs listed below.\n"
+
 
     ######################################
     #
@@ -692,7 +778,7 @@ def main():
     allmrns = familiesped.index.values.tolist()
 
     # Get the Phenotips information for the subjects released in this batch
-    bsi = get_bsi_data(config['bsi1'], config['bsi2'], config_file.name, allmrns, added_to_batch, dropped_from_batch)
+    bsi = get_bsi_data(config['bsi1'], config['bsi2'], allmrns, added_to_batch, dropped_from_batch)
     #print("BSI:\n{}".format(bsi.head()))
 
     # Merge everything you can into one big dataframe for subsetting later
@@ -728,7 +814,7 @@ def main():
     # Master key file: 
     # Get the CIDR Exome ID from previous mapping files for family members
     send_update("Writing out the MasterKey and OrderMRN files: {}...".format(config['masterkey']), log)
-    newkey = write_keys(masterDF, allmrns, fullped, bsi, config['masterkey'], config['mrnorder'], readme)
+    newkey = write_keys(masterDF, allmrns, missing_orders, fullped, bsi, config['masterkey'], config['mrnorder'], readme)
 
     send_update("Writing out new Pedigree file: {}...".format(config['newpedigree']), log)
     newped = write_newped(newkey, fullped, config['newpedigree'])
@@ -741,7 +827,7 @@ def main():
     # Close out and clean up
     #
     ######################################
-    send_update("\nncs_to_gris.py successfully completed", log)
+    send_update("\ncs_to_gris.py successfully completed", log)
     send_update(str(datetime.datetime.now()) + '\n', log)
     log.close()
 

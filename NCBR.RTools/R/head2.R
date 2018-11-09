@@ -20,10 +20,10 @@
 #' @param x the number of items in the first dimension (length or rows) to print
 #' @param y the number of items in the second dimension (columns or list subitems) to print
 #' 
-#' @return beginning of the input object is printed, returns TRUE if end is reached
+#' @return beginning of the input object to be printed or assigned
 #'
 #' @author Susan Huse \email{susan.huse@@nih.gov}
-#' @keywords RNASeq limma topTable merge
+#' @keywords head
 #'
 #' @examples
 #' allfits <- list()
@@ -35,24 +35,27 @@
 #'                          q=0.10, n=NULL, sortby="logFC")
 #'
 #' @export
-head2 <- function(obj, x=5, y=5) {
+head2 <- function(obj, x=6, y=6) {
   # Matrix or Dataframe
   if(class(obj) %in% c("matrix", "data.frame")) {
-    print(obj[1:min(x, nrow(obj)), 1:min(y, ncol(obj))])
+    return(obj[1:min(x, nrow(obj)), 1:min(y, ncol(obj))])
 
   # Vectors
   } else if (class(obj) %in% c("vector")) {
-    print(obj[1:min(x, length(obj))])
+    return(obj[1:min(x, length(obj))])
 
   # List objects
   } else if (class(obj) == "list") {
+    outlist <- list()
     for(i in 1:min(x, length(obj))) {
-      print(head2(obj[[i]]))
+      outlist[[i]] <- head2(obj[[i]])
     }
-
+    names(outlist) <- names(obj)
+    return(outlist)
+    
   # For now, punt on everything else
   } else {
-    print(head(obj))
+    return(head(obj))
   }
 
   # exit

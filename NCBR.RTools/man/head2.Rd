@@ -4,7 +4,7 @@
 \alias{head2}
 \title{print the head(obj) in 2 dimensions}
 \usage{
-head2(obj, x = 5, y = 5)
+head2(obj, x = 6, y = 6)
 }
 \arguments{
 \item{obj}{an R object to print}
@@ -14,7 +14,7 @@ head2(obj, x = 5, y = 5)
 \item{y}{the number of items in the second dimension (columns or list subitems) to print}
 }
 \value{
-beginning of the input object is printed, returns TRUE if end is reached
+beginning of the input object to be printed or assigned
 }
 \description{
 Prints out the head of an object in multiple dimensions.
@@ -40,7 +40,4 @@ allDF <- merge_topTables(allfits,
 \author{
 Susan Huse \email{susan.huse@nih.gov}
 }
-\keyword{RNASeq}
-\keyword{limma}
-\keyword{merge}
-\keyword{topTable}
+\keyword{head}
