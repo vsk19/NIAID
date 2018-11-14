@@ -59,6 +59,8 @@ def test_file(f):
 # Compare indices of two data series, return missing values
 def compare_keys(x,y):
     # join outer, so missing values with be null values in the x or y column
+    print("X:\n{}".format(x.head()))
+    print("Y:\n{}".format(y.head()))
     xy = pd.concat([x,y], axis=1, join='outer', sort=False)
 
     # search for the null values by column, return the index value
@@ -69,19 +71,19 @@ def compare_keys(x,y):
 
 
 # Create the prompt to be used by get_bsi_data
-def bsi_prompt_text(bsifile, idname):
+def bsi_prompt_text(bsifile, idname, reccnt):
     return('\n'.join(["", stars, stars, "Please log into BSI and create a new report that includes:",
     "Subject ID", "PhenotipsId", "CRIS Order #", "Phenotips Family ID", "Batch Sent\n",
     "Use the following {}s as search criteria ({} =@(like) *inserted IDs*).".format(idname, idname),
     'Run the report and save the file as: "{}" in the same directory as {}'.format(bsifile, config['config_fname']),
-    '\nPlease enter "y" to print out the list of {}s to use, or "q" to quit.\n'.format(idname)]))
+    '\nPlease enter "y" to print out the list of {} {}s to use, or "q" to quit.\n'.format(reccnt, idname)]))
 
 # Get the Phenotips information for the subjects in this batch and previous batches
 def get_bsi_data(f1, f2, mrns, added, dropped):
 
     # Prompt and import the first set of BSI data - subjects released in this batch
     if not testmode:
-        pause_for_input(bsi_prompt_text(f1, "Subject ID"), 'y', 'q', log)
+        pause_for_input(bsi_prompt_text(f1, "Subject ID", str(len(mrns))), 'y', 'q', log)
         print("\n" + "\n".join(mrns))
         pause_for_input('\nPlease enter "y" to continue when you have created {}, or "q" to quit.\n'.format(f1), 'y','q', log)
 
@@ -90,10 +92,10 @@ def get_bsi_data(f1, f2, mrns, added, dropped):
     
     # Prompt and import the first set of BSI data - subjects released in previous batches
     if not testmode:
-        pause_for_input(bsi_prompt_text(f2, "CRIS Order #"), 'y', 'q', log)
         added = pd.DataFrame(added)
         dropped = pd.DataFrame(dropped)
         both = pd.concat([pd.DataFrame(added), pd.DataFrame(dropped)])
+        pause_for_input(bsi_prompt_text(f2, "CRIS Order #", str(len(both))), 'y', 'q', log)
         print("\n" + "\n".join(both.iloc[:,0]))
         pause_for_input('\nPlease enter "y" to continue when you have created this file, {}, or "q" to quit.\n'.format(f2), 'y','q', log)
 
@@ -107,18 +109,18 @@ def get_bsi_data(f1, f2, mrns, added, dropped):
     return(bsi)
 
 # Create the prompt to be used by get_bsi_exomes
-def bsi_exomes_prompt_text(bsifile, idname):
+def bsi_exomes_prompt_text(bsifile, idname, reccnt):
     return('\n'.join(["", stars, stars, "Please log into BSI and create a new report that includes:",
     "CRIS Order #", "CIDR Exome ID", "Batch Received\n",
     "Use the following {}s as search criteria ({} =@(like) *inserted IDs*).".format(idname, idname),
     'Run the report and save the file as: "{}" in the same directory as {}'.format(bsifile, config['config_fname']),
-    '\nPlease enter "y" to print out the list of {}s to use, or "q" to quit.\n'.format(idname)]))
+    '\nPlease enter "y" to print out the list of {} {}s to use, or "q" to quit.\n'.format(reccnt, idname)]))
 
 # Get the CIDR_Exome_ID information for the subjects missing exome IDs
 def get_bsi_exomes(f3, ids):
     # Prompt and import the set of missing data 
     if not testmode:
-        pause_for_input(bsi_exomes_prompt_text(f3, "CRIS Order #"), 'y', 'q', log)
+        pause_for_input(bsi_exomes_prompt_text(f3, "CRIS Order #", str(len(ids))), 'y', 'q', log)
         print("\n" + "\n".join(ids))
         pause_for_input('\nPlease enter "y" to continue when you have created {}, or "q" to quit.\n'.format(f3), 'y','q', log)
 
@@ -134,26 +136,32 @@ def get_bsi_exomes(f3, ids):
 ######################################
 
 # Find the duplicate ID from the pedigree file
-def find_the_duplicate(ped):
-    # find the duplicate using the comments column with the word "duplicate"
-    dupestr = ped[ped['Investigator Column 1'].str.contains('Duplicate', case=False, na=False)]['Subject_ID']
-    # find the duplicate because it is the only subject ID > 9 characters
-    dupelen = ped.loc[ped['Subject_ID'].str.len() > 9]['Subject_ID']
+def find_the_duplicate(df, fformat):
+    if fformat == "ped":
+        # find the duplicate using the comments column with the word "duplicate"
+        dupestr = df[df['Investigator Column 1'].str.contains('Duplicate', case=False, na=False)]['Subject_ID']
+        # find the duplicate because it is the only subject ID > 9 characters
+        dupelen = df.loc[df['Subject_ID'].str.len() > 9]['Subject_ID']
+        # If the two methods aren't the same answer, error out
+        if not dupestr.equals(dupelen):
+            err_out("Warning: unable to ascertain duplicate sample identifier.\n" + \
+                    "{} was identified in the pedigree file as a duplicate in 'Investigator Column 1',\n" + \
+                    "{} has Subject_ID length > 9 characters.\n" + \
+                    "Exiting".format(dupestr, dupelen), log)
 
-    # If the two methods aren't the same answer, error out
-    if not dupestr.equals(dupelen):
-        err_out("Error: unable to ascertain duplicate sample identifier.\n" + \
-                "{} was identified in the pedigree file as a duplicate in 'Investigator Column 1',\n" + \
-                "{} has Subject_ID length > 9 characters.\n" + \
-                "Exiting".format(dupestr, dupelen), log)
+    elif fformat == "manifest":
+        # find the duplicate because it is the only subject ID > 9 characters
+        dupestr = df.loc[(df['Subject_ID'].str.len() > 9) & (df['Subject_ID'] != "CONTROL_ID")]['Subject_ID']
+
     if dupestr.size > 1:
-        err_out("Error: found more than one duplicate sample identifier: {}.\nExiting.".format(dupestr), log)
+        send_update("Warning: found more than one duplicate sample identifier: {}.".format(dupestr.tolist()), log)
     elif dupestr.size < 1:
-        err_out("Error: no duplicate sample identifier was found.\nExiting.".format(dupestr), log)
+        send_update("Warning: no duplicate sample identifier was found in the {} file.".format(fformat), log)
+        return(None)
 
-    send_update("Duplicate sample identifier: {}".format(dupestr.iloc[0]), log)
+    send_update("Duplicate sample identifier: {}".format(dupestr), log)
 
-    return(dupestr.iloc[0])
+    return(dupestr.tolist())
 
 # Find the control ID from the 
 def find_the_control(x):
@@ -166,7 +174,9 @@ def find_the_control(x):
     ctrl.extend(ctrlHG)
 
     if len(ctrl) != 1:
-        err_out("Error: found {} control sample identifier(s), expected only one.\n{}\nExiting.".format(str(len(ctrl)),ctrl), log)
+        error_text = "\nError: found {} control sample identifier(s), expected only one.\n{}".format(str(len(ctrl))    ,ctrl) 
+        error_text = error_text + '\nPlease enter "y" to continue or "q" to quit.\n'
+        pause_for_input(error_text, 'y', 'q', log)
 
     send_update("Control sample identifier: {}".format(ctrl[0]), log)
     return(ctrl[0])
@@ -184,15 +194,16 @@ def import_pedigree(f):
     else:
         err_out("Error: Confused by pedigree file name {}, expecting *.csv or *.xlsx.\nExiting.".format(f), log)
         
-
     ## Each set has a sequencing duplicate that should be removed
-    theDupe = find_the_duplicate(ped)
+    theDupe = find_the_duplicate(ped, "ped")
 
     # create a series of batch information with Subject as the index
     batches = ped[ped['Subject_ID'] != ""][['Subject_ID', 'Investigator Column 3']]
     batches = batches[batches.Subject_ID.notnull()].set_index('Subject_ID')
     batches = batches['Investigator Column 3'].str.replace("_.*$", "", regex=True)
-    batches = batches.drop(theDupe)
+
+    if theDupe != None:
+        batches = batches.drop([theDupe])
 
     return(batches, theDupe)
 
@@ -262,10 +273,15 @@ def import_manifest(f, dupe):
     manifest.columns.values[1] = "Subject_ID"
     manifest.columns.values[0] = "Well"
 
+    ## Each set has a sequencing duplicate that should be removed
+    if dupe == None:
+        dupe = find_the_duplicate(manifest, "manifest")
+
     # remove nulls, control_id values, and the duplicate
     manifest = manifest[manifest['Subject_ID'] != "CONTROL_ID"]
     if dupe != None:
-        manifest = manifest[manifest['Subject_ID'] != dupe]
+        #manifest = manifest[manifest['Subject_ID'] != dupe]
+        manifest = manifest[~manifest.Subject_ID.isin(dupe)]
     manifest.dropna(subset=['Subject_ID'], inplace=True) # read_excel is not using null, but "nan"
     manifest = manifest[manifest['Subject_ID'] != "nan"] # not actually null, "nan" string
 
@@ -354,6 +370,10 @@ def import_bsi_exomes(f):
 
 # Print out batch information to the readme file
 def write_batch_info(added_to_batch, dropped_from_batch, batches, masterdf, f, append=False):
+    #print("MasterDF:\n{}".format(masterdf.head()))
+    #print("Batches:\n{}".format(batches.head()))
+    #print("Added to Batch:\n{}".format(added_to_batch))
+    #print("Batch Info for Adds:\n{}".format(batches.loc[added_to_batch]))
     
     # Header
     headText = "\n".join(["", stars, "*", "* Notes for samples released with Batch {}", "*", stars]).format(str(batch))
@@ -370,40 +390,34 @@ def write_batch_info(added_to_batch, dropped_from_batch, batches, masterdf, f, a
     #print("MasterDF:\n{}".format(masterdf.head()))
     missingDF = masterdf.loc[dropped_from_batch]
     missingDF = missingDF[sampleCols]
-    missingText = "{} sample(s) sent to CIDR in Batch {} have not yet been released".format(str(len(dropped_from_batch)), str(batch))
+    missingText = "\n{} sample(s) sent to CIDR in Batch {} have not yet been released".format(str(len(dropped_from_batch)), str(batch))
     if missingDF.shape[0] > 0:
         missingText = missingText + ":\nOrder{}\n".format(missingDF.to_string(justify='left'))
     else:
         missingText = missingText + ".\n"
 
     # Samples from earlier batches that were released with this batch
-    if len(added_to_batch) > 0:
-        addedDF = masterdf.loc[added_to_batch]
-        addedDF = addedDF[['Phenotips_ID', 'Phenotips_Family_ID', 'Batch']]
-
-        # Now look up the batch number for it from the earlier manifests
-        manifestDict = config['previousmanifests']
-        for k in manifestDict.keys():
-            x = import_manifest(manifestDict[k], None)
-            xi = set(added_to_batch) & set(x.index.values.tolist())
-            if len(xi) > 0:
-                for i in xi:
-                    addedDF.at[i, 'Batch'] = "Batch0"+str(k)
+    #df = pd.concat([bsi, mapping], axis=1, join='outer', sort=False)
+    added_batches = pd.concat([ masterdf.loc[added_to_batch][['Phenotips_ID', 'Phenotips_Family_ID', 'Batch']],
+                    batches.loc[added_to_batch]], axis=1, join='outer', sort=False)
+    added_batches = added_batches.iloc[:, [0,1,3]]
+    added_batches.columns = ['Phenotips_ID', 'Phenotips_Family_ID', 'Batch']
 
     # Get the other data for added, then set the batch number
     addedText = "{} sample(s) sent to CIDR in earlier batches were released with Batch {}".format(str(len(added_to_batch)), \
                str(batch))
-    if addedDF.shape[0] > 0:
-        addedText = addedText + ":\nOrder{}".format(addedDF.to_string(columns=['Phenotips_ID', 'Phenotips_Family_ID', 'Batch'], justify='left'))
+    if len(added_to_batch) > 0:
+        #addedText = addedText + ":\nOrder{}".format(addedDF.to_string(columns=['Phenotips_ID', 'Phenotips_Family_ID', 'Batch'], justify='left'))
+        addedText = addedText + ":\nOrder{}".format(added_batches, justify='left')
     else:
         addedText = addedText + ".\n"
 
     # Join the text and write it out to both the log and the README file
-    theText = "\n".join([headText, bodyText, thisBatchText,  missingText, addedText]) + "\n\n"
+    theText = "\n".join([headText, bodyText, thisBatchText,  missingText, addedText]) + "\n"
     send_update(theText, log)
     send_update(theText, f, True)
 
-    return(addedDF)
+    return(added_batches)
 
 # Write out information on the number of families, and those that are split across batches
 def write_family_info(newpedDF, batches, fams, mrns, f):
@@ -411,7 +425,7 @@ def write_family_info(newpedDF, batches, fams, mrns, f):
      
     # Count of families and patients in those families
     bodyText = "The {} patients released in Batch {} belong to {} unique families.\n".format(str(batches.size), str(batch), str(family_count))
-    bodyText = bodyText + "The {} families include {} total patients who have been sequenced and released so far.".format(str(family_count), str(len(mrns)))
+    bodyText = bodyText + "The {} families include {} total patients.".format(str(family_count), str(len(mrns)))
 
     send_update(bodyText, log)
     send_update(bodyText, f, True)
@@ -421,6 +435,14 @@ def write_family_info(newpedDF, batches, fams, mrns, f):
 # Check the family names are okay
 def check_family_ids(df):# (a, p):
     df = df[['Family_ID', 'Phenotips_Family_ID']]
+    # This line causes Warning flag:
+    #/Users/husesm/bin/ncs_to_gris.py:424: SettingWithCopyWarning: 
+    # A value is trying to be set on a copy of a slice from a DataFrame
+    #See the caveats in the documentation: http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing-view-versus-copy
+    #  df.drop_duplicates(subset = ['Family_ID', 'Phenotips_Family_ID'], inplace=True)
+    #  FC: 67, 67, 67
+    #  {67}
+
     df.drop_duplicates(subset = ['Family_ID', 'Phenotips_Family_ID'], inplace=True)
 
     rowcnt = df.shape[0]
@@ -438,24 +460,29 @@ def check_family_ids(df):# (a, p):
         return(True)
 
 def create_master_df(bsi, mapping, ped):
-    #print("PED:\n{}".format(ped.head()))
+    #print("PED:\n{}".format(ped.to_string()))
     #print("BSI:\n{}".format(bsi.head()))
     #print("Mapping:\n{}".format(mapping.head()))
     # Combine the BSI information and the original mapping info
     df = pd.concat([bsi, mapping], axis=1, join='outer', sort=False)
     df['Subject_ID'] = df.index
     df = df.rename(columns = {'SAMPLE_ID':'CIDR_Exome_ID'})
-    #print("DF:\n{}".format(df.head()))
+    df = df.dropna(subset=['Batch_Sent'])
 
     # Subset the ped file and merge it in
     #print("DF MRN:\n{}".format(list(df['MRN'])))
-    print("1")
+    # this line causes FutureWarning:
+    #/Users/husesm/bin/ncs_to_gris.py:453: FutureWarning: 
+    #Passing list-likes to .loc or [] with any missing label will raise
+    #KeyError in the future, you can use .reindex() as an alternative.
+
+    #See the documentation here:
+    #https://pandas.pydata.org/pandas-docs/stable/indexing.html#deprecate-loc-reindex-listlike
+    # ped = ped.loc[df['MRN']]
+
     ped = ped.loc[df['MRN']]
-    print("2")
     df = pd.merge(ped, df, how='outer', left_index=True, right_on='MRN')
-    print("3")
     df.drop_duplicates(inplace=True)
-    print("4")
 
     #print("MasterDF:\n{}".format(df.head()))
     return(df)
@@ -485,6 +512,7 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, fmasterkey, fmrn, readmef):
     # Drop records without Batch Received or Exome ID
     # Create a numeric batch number for comparison, and only keep records older than current batch
     family_members = family_members.dropna()
+    family_members = family_members[family_members.Batch_Received.str.contains("batch", case=False)]
     family_members['Batch_Number'] = family_members['Batch_Received'].str.replace("BATCH0*", "")
     family_members['Batch_Number'] = pd.to_numeric(family_members['Batch_Number'])
     family_members = family_members[family_members['Batch_Number'] < int(batch)]
@@ -497,7 +525,7 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, fmasterkey, fmrn, readmef):
 
     # Add missing not found
     stillmissing = set(missing) - set(family_members.index.values)
-    print("Still Missing:\n{}".format(stillmissing))
+    #print("Still Missing:\n{}".format(stillmissing))
 
     # Fill in any missing batch information
     lostbatch_idx = df[df['Batch'].isnull()].index
@@ -506,7 +534,6 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, fmasterkey, fmrn, readmef):
     df = pd.concat([df,lostbatch], axis=1, join='outer', sort=False)
     df['Batch'] = np.where(df['Batch'].isnull(), df['Batch_Sent'], df['Batch'])
     df = df.drop(['Batch_Sent'], axis=1)
-    print("FIXED BATCH HOLES:\n{}".format(df.tail()))
 
     # For dropped MRNs, get the Phenotips ID and export
     droppedMRNs = set(mrns) - set(df['MRN'])
@@ -514,14 +541,14 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, fmasterkey, fmrn, readmef):
     droppedPIDs.columns = ['CRIS Order #', 'Phenotips_ID', 'Phenotips_Family_ID']
     
     ## Add the text for the Found individuals
-    updateText = "Samples for {} individual(s) matching families in Batch {} were released in previous batches.\n\n".format(str(family_members.shape[0]), batch)
+    updateText = "Samples for {} individual(s) matching families released with Batch {} were released in previous batches.\n".format(str(family_members.shape[0]), batch)
     if family_members.shape[0] > 0:
         updateText = updateText + "{}\n\n".format(family_members.iloc[:,0:2])
 
+    ## Add the text for those still missing, but remove dupes
     if len(droppedMRNs) + len(stillmissing) > 0:
-        updateText = updateText + "Sequencing data for {} family member(s) are not yet available.\n{}\n{}\n\n".format(str(len(stillmissing) + len(droppedMRNs)), droppedPIDs.to_string(index=False), "  "+"\n  ".join(list(stillmissing)))
-        ##updateText = updateText + "Sequencing for {} family member(s) has been sent but not yet released.\n{}\n\n".format(str(len(droppedMRNs)), droppedPIDs.to_string(index=False))
-        ##updateText = updateText + "Sequencing for {} family member(s) have order numbers, but have not been set for sequencing.\n{}\n\n".format(str(len(stillmissing)), ", ".join(list(stillmissing)))
+        # print out the droppedPIDs data frame and any other missing order numbers
+        updateText = updateText + "Sequencing data for {} individual(s) matching families in Batch {} are not yet available.\n{}\n{}\n\n".format(str(len(stillmissing) + len(droppedMRNs)), batch, droppedPIDs.to_string(index=False), "  "+"\n  ".join(stillmissing - set(droppedPIDs['CRIS Order #'])))
     else:
         updateText = updateText + "\nSequencing for all family members has been released.\n"
 
@@ -587,6 +614,13 @@ def write_newped(df, ped, f):
 ####################################
 
 def main():
+    # Global variables
+    global batch
+    global testmode
+    global config
+    global stars
+    stars = "******************************************"
+
     #
     # Usage statement
     #
@@ -599,15 +633,17 @@ def main():
 
     
     parser = argparse.ArgumentParser(description=parseStr, formatter_class=RawTextHelpFormatter)
-    parser.add_argument('-c', '--config_file', required=True, nargs='?', type=argparse.FileType('r'), 
-                        default=None, 
+    parser.add_argument('-c', '--config_file', required=True, nargs='?', 
+                        type=argparse.FileType('r'), default=None, 
                         help='Input configuration file containing source filenames and other information')
     parser.add_argument('-b', '--batch', required=True, type=int, help='Batch number (integer)')
+    parser.add_argument('-t', '--testmode', required=False, action='store_true', default=False,
+                        help='Run in test mode')
 
     args = parser.parse_args()
     config_file = args.config_file
-    global batch
     batch = str(args.batch)
+    testmode=args.testmode
 
     #####################################
     #
@@ -630,12 +666,10 @@ def main():
     # Load the Config File, and check it is complete
     #
     #####################################
-    global config
     config = load(config_file)
     config = dict((k.lower(), v) for k, v in config.items())
 
-    required_values = ['mapping', 'samplekey', 'pedigree', 'manifest', 
-                       'masterpedigree', 'previousmaps', 'previousmanifests']
+    required_values = ['mapping', 'samplekey', 'pedigree', 'manifest', 'masterpedigree']
     missing = []
     for i in required_values:
         if i not in config.keys():
@@ -653,13 +687,6 @@ def main():
     config['mrnorder'] = 'batch' + batch + '.txt'
     config['config_fname'] = config_file.name
 
-
-    # Set a few global variables
-    global stars
-    stars = "******************************************"
-    global testmode
-    testmode = True
-
     #####################################
     ##
     ## Import each of the reference files, do pedigree first to find the duplicate sample
@@ -674,6 +701,13 @@ def main():
     send_update("Importing pedigree information from file: {}".format(config['pedigree']), log, True)
     batches, theDupe = import_pedigree(config['pedigree'])
     #print("Batches:\n{}".format(batches.head()))
+
+    #
+    # Read the original Manifest information
+    #
+    send_update("Importing original sample manifest information from file: {}".format(config['manifest']), log, True)
+    manifest = import_manifest(config['manifest'], theDupe)
+    #print("Manifest data:\n{}".format(manifest.tail()))
 
     #
     # Read the Sample Mapping information
@@ -695,13 +729,6 @@ def main():
     send_update("Importing received orders information from file: {}".format(config['orders']), log, True)
     orders = import_orders(config['orders'])
     #print("Orders data:\n{}".format(orders.head()))
-
-    #
-    # Read the original Manifest information
-    #
-    send_update("Importing original sample manifest information from file: {}".format(config['manifest']), log, True)
-    manifest = import_manifest(config['manifest'], theDupe)
-    #print("Manifest data:\n{}".format(manifest.tail()))
 
     #
     # Read the full pedigree for family information
@@ -743,8 +770,10 @@ def main():
         #send_update("Missing {} key(s) in Pedigree not Orders {}: ".format(str(len(ped_not_order)), ped_not_order), log)
         send_update("Missing {} key(s) in Orders not Pedigree {}: ".format(str(len(order_not_ped)), order_not_ped), log)
         
-        err_out("Error: Subject_IDs in pedigree, sample mapping, sample key, and order files are inconsistent.\n" + \
-                "Please correct the Subject_IDs before continuing to process the data", log)
+        #err_out("Error: Subject_IDs in pedigree, sample mapping, sample key, and order files are inconsistent.\n" + \
+        #        "Please correct the Subject_IDs before continuing to process the data", log)
+        pause_for_input("Error: Subject_IDs in pedigree, sample mapping, sample key, and order files are inconsistent.\n" + \
+                "Please enter 'y' to continue processing the data, or 'q' to quit and correct the data.\n", 'y', 'q', log)
     else:
         send_update("Great News!! Subject_IDs in pedigree, sample mapping, and sample key files are consistent.\n", log)
 #    if sum(len(ped_not_order), len(order_not_ped)) > 0:
@@ -803,7 +832,7 @@ def main():
     #
     readme = open(config['readme'], 'w')
     #print("Write batch info")
-    addedDF = write_batch_info(added_to_batch, dropped_from_batch, batches, masterDF, readme)
+    theText = write_batch_info(added_to_batch, dropped_from_batch, batches, masterDF, readme)
 
     ######################################
     #   
@@ -827,7 +856,7 @@ def main():
     # Close out and clean up
     #
     ######################################
-    send_update("\ncs_to_gris.py successfully completed", log)
+    send_update("\nncs_to_gris.py successfully completed", log)
     send_update(str(datetime.datetime.now()) + '\n', log)
     log.close()
 
