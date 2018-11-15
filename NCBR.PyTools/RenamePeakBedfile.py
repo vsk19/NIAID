@@ -45,7 +45,7 @@ def checkBed(input):
         print( "Incorrect file format. Column 4 is numeric." )
         sys.exit()
     elif (input[0][3] == "+") | (input[0][3] == "-") | (input[0][3] == "."):
-        print (Incorrect file format. Column 4 contains strand information.")
+        print ("Incorrect file format. Column 4 contains strand information.")
         sys.exit()
     else:
         return(input)
