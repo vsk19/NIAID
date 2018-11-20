@@ -55,6 +55,7 @@ def bsi_prompt_text(bsifile):
 
 # Get the Phenotips information for the subjects in this batch and previous batches
 def get_bsi_data(bsifile, theIDs):
+    test_file(bsifile)
 
     # Prompt and import the first set of BSI data - subjects released in this batch
     pause_for_input(bsi_prompt_text(bsifile), 'y', 'q')
@@ -77,8 +78,8 @@ def import_cnv(filename, refid):
     headcnt = 5
     colcnt = 6
 
-    # Read it in
-    df = pd.read_csv(filename, header=headcnt, sep='\t', index_col=0)
+    # Read it in, use dtype string to avoid float adding lots of extra digits
+    df = pd.read_csv(filename, header=headcnt, sep='\t', index_col=0, dtype=str)
     df.index = df.index.astype('str')
 
     # Fix the weirdness with the columns
@@ -150,8 +151,8 @@ def main():
                         help='Input file containing CNV results and Array IDs')
     parser.add_argument('-o', '--outfile', required=True, action='store', type=str, default=None,
                         help='Output file for important results')
-    parser.add_argument('-b', '--bsifile', required=True, action='store', type=str, default="bsi_ids.csv",
-                        help='Output file from BSI providing Array IDs and Phenotips IDs')
+    parser.add_argument('-b', '--bsifile', required=False, action='store', type=str, default="bsi.csv",
+                        help='Output file from BSI providing Array IDs and Phenotips IDs, default=bsi.csv')
     parser.add_argument('-r', '--refid', required=False, action='store', type=str, default="NA12878",
                         help='Reference DNA sample included with each batch, default=NA12878')
 
