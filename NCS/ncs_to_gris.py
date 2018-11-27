@@ -474,16 +474,6 @@ def create_master_df(bsi, mapping, ped):
     df = df.dropna(subset=['Batch_Sent'])
 
     # Subset the ped file and merge it in
-    #print("DF MRN:\n{}".format(list(df['MRN'])))
-    # this line causes FutureWarning:
-    #/Users/husesm/bin/ncs_to_gris.py:453: FutureWarning: 
-    #Passing list-likes to .loc or [] with any missing label will raise
-    #KeyError in the future, you can use .reindex() as an alternative.
-
-    #See the documentation here:
-    #https://pandas.pydata.org/pandas-docs/stable/indexing.html#deprecate-loc-reindex-listlike
-    # ped = ped.loc[df['MRN']]
-
     ped = ped.loc[ped.index.intersection(df['MRN'].tolist())]
     df = pd.merge(ped, df, how='outer', left_index=True, right_on='MRN')
     df.drop_duplicates(inplace=True)
@@ -494,12 +484,13 @@ def create_master_df(bsi, mapping, ped):
 # Write out the master key for selecting all current and past family VCF data
 #newkey = write_keys(masterDF, allmrns, missing_orders, fullped, bsi, config['masterkey'], config['mrnorder'], readme)
 def write_keys(df, mrns, notinbatch, ped, bsidf, samplekey, fmasterkey, fmrn, readmef):
-    ##!!! SUE !!! family members must be added to new masterkey file!  currently they are not in it.
     #print("Ped:\n{}".format(ped.head()))
     #print("WriteKeys df:\n{}".format(df.head()))
 
     df = df[['MRN', 'Subject_ID', 'Phenotips_ID', 'Phenotips_Family_ID', 'CIDR_Exome_ID', 'Batch']]
-    #print("DF:\n{}".format(df.head()))
+    print("DF:\n{}".format(df.head()))
+    print("DF for seqr:\n".format(df.loc[['002FYJQTV','002FWSBQD','002FVPCHD','002FSFJQQ']]))
+    print("DF for seqr:\n".format(df.loc[df.MRN.isin(['72-83-13-1','76-57-54-7','75-57-93-0'])]))
 
     # Exome IDs for family members that were released in earlier batches
     missing = df[df['CIDR_Exome_ID'].isnull()].index
@@ -513,15 +504,15 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, samplekey, fmasterkey, fmrn, re
     nonBatched = pd.DataFrame(data=seq_family_members[~seq_family_members.Batch_Received.str.contains("batch", case=False)])
     nonBatched = nonBatched.index.values.tolist()
     seq_family_members = seq_family_members[seq_family_members.Batch_Received.str.contains("batch", case=False)] # remove "Sample swap"
+    ##SUE remove "sample swap" from family members!!, if it is empty or has batch in the string
+    seq_family_members = seq_family_members[seq_family_members.Batch_Received.str.contains("batch", case=False)] # remove "Sample swap"
     seq_family_members['Batch_Number'] = seq_family_members['Batch_Received'].str.replace("BATCH0*", "")
     seq_family_members['Batch_Number'] = pd.to_numeric(seq_family_members['Batch_Number'])
     seq_family_members = seq_family_members[seq_family_members['Batch_Number'] < int(batch)]
 
     # Insert the found exome IDs 
     seq_index = seq_family_members.index.intersection(df.index.tolist())
-    print("Seq Index for family members:\n{}".format(seq_index))
-    df.loc[seq_index]['CIDR_Exome_ID'] = seq_family_members.loc[seq_index]['CIDR_Exome_ID']
-    print("DF for seqindex:\n{}".format(df.loc[seq_index]))
+    df.loc[seq_index,'CIDR_Exome_ID'] = seq_family_members.loc[seq_index]['CIDR_Exome_ID']
 
     # remove extraneous data that came back from BSI, multiple orders of same person
     df = df[df['CIDR_Exome_ID'].notnull()]
@@ -531,6 +522,10 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, samplekey, fmasterkey, fmrn, re
     missing_family_members = family_members[~family_members.index.isin(seq_family_members.index)]
     family_members = family_members[~family_members.index.isin(nonBatched)]
     missing_family_members = missing_family_members[['Phenotips_ID', 'Phenotips_Family_ID', 'Batch_Sent']]
+    allmissingText = "Sequencing for {} individual(s) matching families sent or released in Batch {} have not yet been released.\n".format(str(missing_family_members.shape[0]), str(batch))
+
+    # Remove family members related to those sent but not released with Batch 
+    missing_family_members = missing_family_members.loc[missing_family_members.Phenotips_Family_ID.isin(df.Phenotips_Family_ID.unique())]
     
     # Fill in any missing batch information
     lostbatch_idx = df[df['Batch'].isnull()].index
@@ -552,7 +547,7 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, samplekey, fmasterkey, fmrn, re
     ## Add the text for those still missing, but remove dupes
     if len(droppedMRNs) + len(stillmissing) > 0:
         # print out the droppedPIDs data frame and any other missing order numbers
-        updateText = updateText + "Sequencing data for {} individual(s) matching families in Batch {} are not yet available.\n{}\n\n".format(str(missing_family_members.shape[0]), str(batch), missing_family_members.to_string())
+        updateText = updateText + allmissingText + "Sequencing data for {} individual(s) matching families in Batch {} are not yet available.\n{}\n\n".format(str(missing_family_members.shape[0]), str(batch), missing_family_members.to_string())
     else:
         updateText = updateText + "\nSequencing for all family members has been released.\n"
 
@@ -565,15 +560,13 @@ def write_keys(df, mrns, notinbatch, ped, bsidf, samplekey, fmasterkey, fmrn, re
     #print("DF to VCF:\n{}".format(df.head()))
     # Export the masterkey file
     dfmaster = df.drop(['MRN', 'Phenotips_Family_ID'], axis=1)
-    print("MasterDF for seqindex:\n{}".format(dfmaster.loc[seq_index]))
+    #print("MasterDF for seqindex:\n{}".format(dfmaster.loc[seq_index]))
     dfmaster.to_csv(fmasterkey, sep='\t', header=True, index=False)
 
     # Export the mrnorder file
     dfmrn = df.reset_index()
     dfmrn = dfmrn[['MRN', 'Subject_ID', 'Phenotips_Family_ID', 'Phenotips_ID']]
-    #print("DF MRN ORDER:\n{}".format(dfmrn.head()))
     dfmrn.columns.values[1] = "Order_Number"
-    #print("DF MRN ORDER:\n{}".format(dfmrn.head()))
     
     dfmrn.to_csv(fmrn, sep='\t', header=True, index=False)
     return(df, seq_family_members)
