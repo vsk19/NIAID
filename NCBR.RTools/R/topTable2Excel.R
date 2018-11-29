@@ -36,6 +36,7 @@
 #' @param sortby ordering of the rows exported.  If "logFC" then sort by descreasing abs(logFC), otherwise sort by FDR.
 #' @param append should the data be added as a new sheet to an existing file, or should the output file be reinitialized with this as the only sheet (default=TRUE)
 #' @param excel export to xlsx format, otherwise export to csv format (default = TRUE)
+#' @param sep if the file format is excel (excel=FALSE), determines what delimiter to use (default=",").  Use "\t" for tab.
 #' 
 #' @return Excel (xlsx or csv) file is saved to disk.
 #'
@@ -47,7 +48,7 @@
 #' top2Excel(theFit=myFit, theCoef=NULL, theFile=Project_results.xlsx, theSheet="MyProject", append=FALSE)
 #'
 #' @export
-topTable2Excel <- function(theFit, theCoef, theFile, theSheet="topTable", q=0.05, sortby="logFC", append=TRUE, excel=TRUE) {
+topTable2Excel <- function(theFit, theCoef, theFile, theSheet="topTable", q=0.05, sortby="logFC", append=TRUE, excel=TRUE, sep=",") {
   if(append == TRUE & excel == FALSE) {
     return("Error in topTable2Excel: cannot append data to an existing csv file.  Append is only available for Excel (xlsx) files.  Exiting...")
   }
@@ -63,6 +64,6 @@ topTable2Excel <- function(theFit, theCoef, theFile, theSheet="topTable", q=0.05
   if(excel){
     write.xlsx2(myDF, file=theFile, sheetName=theSheet, append=append, col.names=TRUE, row.names=TRUE)
   } else {
-    write.csv(myDF, file=theFile, quote=FALSE, col.names=NA, row.names=TRUE)
+    write.table(myDF, file=theFile, quote=FALSE, col.names=NA, row.names=TRUE, sep=sep)
   }
 }
