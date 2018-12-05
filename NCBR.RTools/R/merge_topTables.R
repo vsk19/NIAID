@@ -31,7 +31,8 @@
 #' @param logFC minimum logFC to include (default=1)
 #' @param n maximum number of rows to include (default=10), use NULL to include all filtered rows.
 #' @param sortby ordering of the rows exported. If "logFC" then sort by descreasing abs(logFC), otherwise sort by the specified topTable column.
-#' 
+#' @param miRNA boolean, specifying if fit objects are miRNA DGELRT objects (default=FALSE)
+#'
 #' @return dataframe merged from all input topTable(fit, coef) results
 #'
 #' @author Susan Huse \email{susan.huse@@nih.gov}
@@ -47,7 +48,7 @@
 #'                          q=0.10, n=NULL, sortby="logFC")
 #'
 #' @export
-merge_topTables <- function(fits, names, coefs, q=0.05, logFC=1, n=10, sortby="logFC") {
+merge_topTables <- function(fits, names, coefs, q=0.05, logFC=1, n=10, sortby="logFC", miRNA=FALSE) {
   # Check the inputs
   if(length(fits) != length(names)) {stop("fits list and names vector must be the same length")}
   if(length(fits) < 2) {stop("Need at least 2 fits to merge")}
@@ -56,7 +57,13 @@ merge_topTables <- function(fits, names, coefs, q=0.05, logFC=1, n=10, sortby="l
   
   # Get all of the top tables
   for(i in 1:length(fits)) {
-    df <- topTable(fits[[i]], coef=coefs[i], n=nrow(fits[[i]]$coefficients))
+    if(miRNA) {
+      df <- topTags(fits[[i]], n=nrow(fits[[i]]$coefficients))$table
+      colnames(df)[grep("FDR", colnames(df))] <- "adj.P.Val"
+    } else {
+      df <- topTable(fits[[i]], coef=coefs[i], n=nrow(fits[[i]]$coefficients))
+    }
+
     colnames(df) <- paste(names[i], colnames(df), sep="_")
     allDFs[[length(allDFs) + 1 ]] <- df
     # create a running list of the q significant results

@@ -24,8 +24,9 @@
 #' @param theCoef the coefficient in the fit object to analyze (default=NULL)
 #' @param q minimum FDR / q / adjusted p-value to include (default=0.05)
 #' @param n maximum number of rows to include in the final output dataframe (default = 10)
-#' @param lFC minimum log2 fold change to include either up or down (abs(logFC)) (default = 1.5)
+#' @param lFC minimum log2 fold change to include either up or down (abs(logFC)) (default = 0.58 = FC of 1.5)
 #' @param addGene parse out the gene name from the gene ID reported with CCBR Pipeliner (default = TRUE)
+#' @param miRNA boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)
 #' 
 #' @return dataframe, with the format provided by limma::topTable
 #'
@@ -36,9 +37,16 @@
 #' myFit <- limma_model(x=eset, y=covarMtx, cols=covars, interact=FALSE)
 #' myHits <- get_filtered_topTable(myFit, theCoef="isKO", q=0.1, n=50, lFC=1)
 #' @export
-get_filtered_topTable <- function(theFit, theCoef=NULL, q=0.05, n=10, lFC=1.5, addGene=TRUE) {
-  myDF <- topTable(theFit, coef=theCoef, number=nrow(theFit$coefficients))
-  myDF <- myDF[myDF$adj.P.Val <= q,]
+get_filtered_topTable <- function(theFit, theCoef=NULL, q=0.05, n=10, lFC=0.58, addGene=TRUE, miRNA=FALSE) {
+  if(miRNA) {
+    myDF <- topTags(theFit, n=nrow(theFit$coefficients))$table
+    addGene=FALSE
+    myDF <- myDF[myDF$FDR <= q,]
+  } else {
+    myDF <- topTable(theFit, coef=theCoef, number=nrow(theFit$coefficients))
+    myDF <- myDF[myDF$adj.P.Val <= q,]
+  }
+  
   myDF <- myDF[abs(myDF$logFC) >= lFC,]
   if(addGene) { myDF <- insert_EnsemblGene(myDF) }
   myDF <- myDF[order(abs(myDF$logFC), decreasing=TRUE),]

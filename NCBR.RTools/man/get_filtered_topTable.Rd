@@ -5,7 +5,7 @@
 \title{Filter topTable results by fold change, significance, and n}
 \usage{
 get_filtered_topTable(theFit, theCoef = NULL, q = 0.05, n = 10,
-  lFC = 1.5, addGene = TRUE)
+  lFC = 0.58, addGene = TRUE, miRNA = FALSE)
 }
 \arguments{
 \item{theFit}{a limma fit (MArrayLM) object}
@@ -16,9 +16,11 @@ get_filtered_topTable(theFit, theCoef = NULL, q = 0.05, n = 10,
 
 \item{n}{maximum number of rows to include in the final output dataframe (default = 10)}
 
-\item{lFC}{minimum log2 fold change to include either up or down (abs(logFC)) (default = 1.5)}
+\item{lFC}{minimum log2 fold change to include either up or down (abs(logFC)) (default = 0.58 = FC of 1.5)}
 
 \item{addGene}{parse out the gene name from the gene ID reported with CCBR Pipeliner (default = TRUE)}
+
+\item{miRNA}{boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)}
 }
 \value{
 dataframe, with the format provided by limma::topTable

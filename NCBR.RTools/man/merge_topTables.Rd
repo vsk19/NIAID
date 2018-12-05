@@ -5,7 +5,7 @@
 \title{Merge limma:topTable results for multiple comparisons}
 \usage{
 merge_topTables(fits, names, coefs, q = 0.05, logFC = 1, n = 10,
-  sortby = "logFC")
+  sortby = "logFC", miRNA = FALSE)
 }
 \arguments{
 \item{fits}{a list of limma fit (MArrayLM) objects}
@@ -21,6 +21,8 @@ merge_topTables(fits, names, coefs, q = 0.05, logFC = 1, n = 10,
 \item{n}{maximum number of rows to include (default=10), use NULL to include all filtered rows.}
 
 \item{sortby}{ordering of the rows exported. If "logFC" then sort by descreasing abs(logFC), otherwise sort by the specified topTable column.}
+
+\item{miRNA}{boolean, specifying if fit objects are miRNA DGELRT objects (default=FALSE)}
 }
 \value{
 dataframe merged from all input topTable(fit, coef) results

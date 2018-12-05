@@ -5,10 +5,10 @@
 #  October 22, 2018
 #
 ####################
-#' Print limma::topTable results to Excel
+#' Export topTable results to Excel or csv/tsv
 #'
 #' Reads a limma fit (MArrayLM) object, runs topTable with the specified parameters
-#' the exports the dataframe to xlsx or csv format.
+#' the exports the dataframe to xlsx, csv, or tab-delimited format.
 #'
 #' For the given fit object, as well as the coefficient to analyze, 
 #' topTable2Excel will run topTable returning all results, before filtering by
@@ -37,6 +37,7 @@
 #' @param append should the data be added as a new sheet to an existing file, or should the output file be reinitialized with this as the only sheet (default=TRUE)
 #' @param excel export to xlsx format, otherwise export to csv format (default = TRUE)
 #' @param sep if the file format is excel (excel=FALSE), determines what delimiter to use (default=",").  Use "\t" for tab.
+#' @param miRNA boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)
 #' 
 #' @return Excel (xlsx or csv) file is saved to disk.
 #'
@@ -48,11 +49,17 @@
 #' top2Excel(theFit=myFit, theCoef=NULL, theFile=Project_results.xlsx, theSheet="MyProject", append=FALSE)
 #'
 #' @export
-topTable2Excel <- function(theFit, theCoef, theFile, theSheet="topTable", q=0.05, sortby="logFC", append=TRUE, excel=TRUE, sep=",") {
+topTable2Excel <- function(theFit, theCoef, theFile, theSheet="topTable", q=0.05, sortby="logFC", append=TRUE, excel=TRUE, sep=",", miRNA=FALSE) {
   if(append == TRUE & excel == FALSE) {
     return("Error in topTable2Excel: cannot append data to an existing csv file.  Append is only available for Excel (xlsx) files.  Exiting...")
   }
-  myDF <- topTable(theFit, coef=theCoef, number=nrow(theFit$coefficients))
+  if(miRNA) {
+    myDF <- topTags(theFit, n=nrow(theFit$coefficients))$table
+    colnames(myDF)[grep("FDR", colnames(myDF))] <- "adj.P.Val"
+  } else {
+    myDF <- topTable(theFit, coef=theCoef, number=nrow(theFit$coefficients))
+  }
+  
   myDF <- myDF[myDF$adj.P.Val <= q,]
   myDF <- insert_EnsemblGene(myDF)
   if(sortby == "logFC") {

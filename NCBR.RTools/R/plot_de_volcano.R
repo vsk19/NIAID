@@ -21,6 +21,7 @@
 #' @param minLFC minimum log2 foldchange of genes considered biologically significant (default=1)
 #' @param sigcol color name for the lines and points highlighting significant differential expression (default="red")
 #' @param showsub boolean, if TRUE show subtitle with counts, if FALSE no subtitling
+#' @param miRNA boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)
 #' 
 #' @return ggplot object for printing
 #'
@@ -31,8 +32,14 @@
 #' print(plot_de_volcano(f=myFit, coef="TreatmntTRUE", title="Experiment 1"))
 #' 
 #' @export
-plot_de_volcano <- function(f, coef, title="Volcano Plot", maxq=0.1, minLFC=1, sigcol="red", showsub=TRUE) {
-  x <- topTable(f, coef=coef, n=nrow(f$coefficients))
+plot_de_volcano <- function(f, coef, title="Volcano Plot", maxq=0.1, minLFC=1, sigcol="red", showsub=TRUE, miRNA=FALSE) {
+  if(miRNA) {
+    x <- topTags(f, n=nrow(f$coefficients))$table
+    colnames(x)[grep("FDR", colnames(x))] <- "adj.P.Val"
+  } else {
+    x <- topTable(f, coef=coef, n=nrow(f$coefficients))
+  }
+  
   x$logq <- -log10(x$adj.P.Val)
   minFDR <- -log10(maxq)
   sigs <- x$logq >= minFDR & abs(x$logFC) >= minLFC

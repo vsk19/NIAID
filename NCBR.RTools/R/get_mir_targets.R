@@ -51,8 +51,7 @@ get_mir_targets <- function(x, f, minscore=80, sp=NULL, keepsp=TRUE) {
   # known_targets = get_mir_targets(rownames(topdf$table), "/Users/husesm/FNL/Projects/Colitis/NCBR-5/miRDB/mmu.miRDB.pred.txt", sp="mmu", minscore=80)
   # Load the miRDB file of targets
   mirdb = read.table(f, header=FALSE, sep="\t")
-  mirdb_cols <- c("miRNA_ID", "Target_ID", "Tgt_Pred_Score")
-  colnames(mirdb) <- mirdb_cols
+  colnames(mirdb) <-  c("miRNA_ID", "Target_ID", "Tgt_Pred_Score")
   
   # update the vector if sp is not null
   if(! is.null(sp)) {

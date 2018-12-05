@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+#curl -X POST --header 'Content-Type: application/x-www-form-urlencoded' ==header 'Accept:   application/json' -d 'user_name=huses' Response Body
+#se
+
+curl -X POST --header 'Content-Type: application/x-www-form-urlencoded' --header 'Accept: text/plain' -d 'user_name=huses&password=SweetN3%24%24L1T3BSI' 'https://rest.bsisystems.com/api/rest/EBMS/common/logon'
+

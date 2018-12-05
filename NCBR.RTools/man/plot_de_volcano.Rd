@@ -5,7 +5,7 @@
 \title{Create a volcano plot from a limma fit object}
 \usage{
 plot_de_volcano(f, coef, title = "Volcano Plot", maxq = 0.1,
-  minLFC = 1, sigcol = "red", showsub = TRUE)
+  minLFC = 1, sigcol = "red", showsub = TRUE, miRNA = FALSE)
 }
 \arguments{
 \item{f}{input limma fit object}
@@ -21,6 +21,8 @@ plot_de_volcano(f, coef, title = "Volcano Plot", maxq = 0.1,
 \item{sigcol}{color name for the lines and points highlighting significant differential expression (default="red")}
 
 \item{showsub}{boolean, if TRUE show subtitle with counts, if FALSE no subtitling}
+
+\item{miRNA}{boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)}
 }
 \value{
 ggplot object for printing

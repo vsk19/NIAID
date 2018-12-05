@@ -2,10 +2,11 @@
 % Please edit documentation in R/topTable2Excel.R
 \name{topTable2Excel}
 \alias{topTable2Excel}
-\title{Print limma::topTable results to Excel}
+\title{Export topTable results to Excel or csv/tsv}
 \usage{
 topTable2Excel(theFit, theCoef, theFile, theSheet = "topTable",
-  q = 0.05, sortby = "logFC", append = TRUE, excel = TRUE)
+  q = 0.05, sortby = "logFC", append = TRUE, excel = TRUE,
+  sep = ",", miRNA = FALSE)
 }
 \arguments{
 \item{theFit}{a limma fit (MArrayLM) object}
@@ -23,13 +24,17 @@ topTable2Excel(theFit, theCoef, theFile, theSheet = "topTable",
 \item{append}{should the data be added as a new sheet to an existing file, or should the output file be reinitialized with this as the only sheet (default=TRUE)}
 
 \item{excel}{export to xlsx format, otherwise export to csv format (default = TRUE)}
+
+\item{sep}{if the file format is excel (excel=FALSE), determines what delimiter to use (default=",").  Use "\t" for tab.}
+
+\item{miRNA}{boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)}
 }
 \value{
 Excel (xlsx or csv) file is saved to disk.
 }
 \description{
 Reads a limma fit (MArrayLM) object, runs topTable with the specified parameters
-the exports the dataframe to xlsx or csv format.
+the exports the dataframe to xlsx, csv, or tab-delimited format.
 }
 \details{
 For the given fit object, as well as the coefficient to analyze, 
