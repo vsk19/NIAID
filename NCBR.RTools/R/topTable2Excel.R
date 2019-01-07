@@ -36,7 +36,7 @@
 #' @param sortby ordering of the rows exported.  If "logFC" then sort by descreasing abs(logFC), otherwise sort by FDR.
 #' @param append should the data be added as a new sheet to an existing file, or should the output file be reinitialized with this as the only sheet (default=TRUE)
 #' @param excel export to xlsx format, otherwise export to csv format (default = TRUE)
-#' @param sep if the file format is excel (excel=FALSE), determines what delimiter to use (default=",").  Use "\t" for tab.
+#' @param sep if the file format is excel (excel=FALSE), determines what delimiter to use (default=",").  Use "backslash t" for tab.
 #' @param miRNA boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)
 #' 
 #' @return Excel (xlsx or csv) file is saved to disk.

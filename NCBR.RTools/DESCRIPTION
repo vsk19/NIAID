@@ -8,5 +8,8 @@ Depends: R (>= 3.1.0)
 Imports: 
     limma, 
     Biobase, 
-    edgeR
+    edgeR,
+    jsonlite,
+    RCurl,
+    dplyr
 RoxygenNote: 6.1.0

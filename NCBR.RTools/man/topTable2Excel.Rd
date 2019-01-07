@@ -25,7 +25,7 @@ topTable2Excel(theFit, theCoef, theFile, theSheet = "topTable",
 
 \item{excel}{export to xlsx format, otherwise export to csv format (default = TRUE)}
 
-\item{sep}{if the file format is excel (excel=FALSE), determines what delimiter to use (default=",").  Use "\t" for tab.}
+\item{sep}{if the file format is excel (excel=FALSE), determines what delimiter to use (default=",").  Use "backslash t" for tab.}
 
 \item{miRNA}{boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)}
 }
