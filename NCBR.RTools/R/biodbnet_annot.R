@@ -14,7 +14,7 @@
 #' containing annotations from each database for each gene.
 #' Optionally writes out the annotations to a text file.
 #'  
-#' @param glist input character vector of gene symbols (default=NULL)
+#' @param genes input character vector of gene symbols (default=NULL)
 #' @param gfile input text file, one column, each line includes one gene symbol (default=NULL)
 #' @param outfile optional output text file to write annotation dataframe to (default=NULL)
 #' @param delim field delimiter used in output text file (default=tab)

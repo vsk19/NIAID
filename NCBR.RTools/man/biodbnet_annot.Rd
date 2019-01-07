@@ -8,6 +8,8 @@ biodbnet_annot(genes = NULL, gfile = NULL, outfile = NULL,
   taxonID = 9606, maxN = 1000, delim = "\\t")
 }
 \arguments{
+\item{genes}{input character vector of gene symbols (default=NULL)}
+
 \item{gfile}{input text file, one column, each line includes one gene symbol (default=NULL)}
 
 \item{outfile}{optional output text file to write annotation dataframe to (default=NULL)}
@@ -17,8 +19,6 @@ biodbnet_annot(genes = NULL, gfile = NULL, outfile = NULL,
 \item{maxN}{maximum number of genes to send in each curl command (default=1000)}
 
 \item{delim}{field delimiter used in output text file (default=tab)}
-
-\item{glist}{input character vector of gene symbols (default=NULL)}
 }
 \value{
 annotation dataframe with gene symbols are row names and annotation databases are column names
