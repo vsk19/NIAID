@@ -4,6 +4,8 @@
 #  Susan Huse, susan.huse@@nih.gov
 #  October 16, 2018
 #
+#  updated: 1/7/19 by Tovah Markowitz to improve plot coloring
+#
 ####################
 #' Create a volcano plot from a limma fit object
 #'
@@ -20,6 +22,7 @@
 #' @param maxq maximum FDR value of genes considered statistically significant (default=0.1)
 #' @param minLFC minimum log2 foldchange of genes considered biologically significant (default=1)
 #' @param sigcol color name for the lines and points highlighting significant differential expression (default="red")
+#' @param sigLowFCcol color name for the points that are significant but have a low FC (default="blue")
 #' @param showsub boolean, if TRUE show subtitle with counts, if FALSE no subtitling
 #' @param miRNA boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)
 #' 
@@ -32,7 +35,7 @@
 #' print(plot_de_volcano(f=myFit, coef="TreatmntTRUE", title="Experiment 1"))
 #' 
 #' @export
-plot_de_volcano <- function(f, coef, title="Volcano Plot", maxq=0.1, minLFC=1, sigcol="red", showsub=TRUE, miRNA=FALSE) {
+plot_de_volcano <- function(f, coef, title="Volcano Plot", maxq=0.1, minLFC=1, sigcol="red", sigLowFCcol="navyblue", showsub=TRUE, miRNA=FALSE) {
   if(miRNA) {
     x <- topTags(f, n=nrow(f$coefficients))$table
     colnames(x)[grep("FDR", colnames(x))] <- "adj.P.Val"
@@ -43,6 +46,7 @@ plot_de_volcano <- function(f, coef, title="Volcano Plot", maxq=0.1, minLFC=1, s
   x$logq <- -log10(x$adj.P.Val)
   minFDR <- -log10(maxq)
   sigs <- x$logq >= minFDR & abs(x$logFC) >= minLFC
+  sigLowFC <- x$logq >= minFDR & abs(x$logFC) < minLFC
   
   cnt_plus <- sum(x$logq >= minFDR & x$logFC >= minLFC)
   cnt_neg <- sum(x$logq >= minFDR & x$logFC <= -minLFC)
@@ -56,6 +60,7 @@ plot_de_volcano <- function(f, coef, title="Volcano Plot", maxq=0.1, minLFC=1, s
   p <- ggplot(x) +
     geom_point(aes(x=logFC, y=logq), size=0.5) + 
     geom_point(data=x[sigs,], aes(x=logFC, y=logq), size=0.5, col=sigcol) +
+    geom_point(data=x[sigLowFC,], aes(x=logFC, y=logq), size=0.5, col=sigLowFCcol) +
     ggtitle(title, subtitle=subtitle) + xlab("log2 Fold Change") + ylab("log10 FDR") +
     theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) + 
     geom_vline(xintercept=minLFC, col=sigcol, linetype="dashed", size=0.5) + 
