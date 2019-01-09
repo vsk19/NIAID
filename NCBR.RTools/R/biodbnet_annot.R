@@ -19,7 +19,7 @@
 #' @param outfile optional output text file to write annotation dataframe to (default=NULL)
 #' @param delim field delimiter used in output text file (default=tab)
 #' @param taxonID taxonomic ID for the gene list (default=9606 for Homo sapiens, use 10090 for Mus musculus)
-#' @param maxN maximum number of genes to send in each curl command (default=1000)
+#' @param maxN maximum number of genes to send in each curl command (default=500)
 #' 
 #' @return annotation dataframe with gene symbols are row names and annotation databases are column names
 #' additionally, will output to file as comma or tab delimited fields
@@ -35,7 +35,7 @@
 #' @importFrom RCurl getURL
 #' @import dplyr
 #' @export
-biodbnet_annot <- function(genes=NULL, gfile=NULL, outfile=NULL, taxonID=9606, maxN=1000, delim="\t") {
+biodbnet_annot <- function(genes=NULL, gfile=NULL, outfile=NULL, taxonID=9606, maxN=500, delim="\t") {
   # Load up the vector of gene names
   # first check how to read the genes
   if(! is.null(genes) & ! is.null(gfile) ) {
