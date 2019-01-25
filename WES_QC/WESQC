@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#ExampleRun: bash WESQC "/path/to/BATCH" "BATCH_QC" "snakejobs" {Note: Remove Quotes and do not include "/" after first argument}
+
+
+cd $1
+mkdir BATCH_QC
+cd $1/$2
+mkdir snakejobs
+cd $1/$2
+cp /hpcdata/scratch/boddapatia2/Script/wes_qc.snakefile /hpcdata/scratch/boddapatia2/Script/WESQC /hpcdata/scratch/boddapatia2/Script/run.json /hpcdata/scratch/boddapatia2/Script/cluster.json $1/$2
+
+module load snakemake
+CLUSTER_OPTS="qsub -pe threaded {cluster.threads} -l h_vmem={cluster.mem} -wd $1/$2/$3"
+snakemake -j 30 --cluster-config cluster.json --cluster "$CLUSTER_OPTS" --keep-going --snakefile wes_qc.snakefile > snakemake.output.txt 2>&1 &
