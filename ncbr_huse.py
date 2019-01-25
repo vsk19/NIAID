@@ -102,6 +102,23 @@ def err_out(errMsg, log = None):
     sys.exit(errMsg)
 
 #
+# Test validity of input file or directory
+#
+def test_file(f, log=None):
+    if type(f) != str:
+        f = f.name
+    if not os.path.isfile(f):
+        err_out("Error: unable to locate input file:  " + f, None)
+    else:
+        return(True)
+
+def test_dir(d, log=None):
+    if not os.path.isdir(d):
+        err_out("Error: unable to locate input directory:  " + d, None)
+    else:
+        return(True)
+
+#
 # Pause for user to be ready to continue, use contkey=None to get any input
 #
 def pause_for_input(txt, contkey='y', quitkey='q', log=None):
