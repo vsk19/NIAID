@@ -8,7 +8,7 @@ mkdir BATCH_QC
 cd $1/$2
 mkdir snakejobs
 cd $1/$2
-cp /hpcdata/scratch/boddapatia2/Script/wes_qc.snakefile /hpcdata/scratch/boddapatia2/Script/WESQC /hpcdata/scratch/boddapatia2/Script/run.json /hpcdata/scratch/boddapatia2/Script/cluster.json $1/$2
+cp /hpcdata/scratch/NIAID_scripts/MultiQC/Multiqc.snakemake /hpcdata/scratch/NIAID_scripts/MultiQC/MultiQC.sh /hpcdata/scratch/NIAID_scripts/MultiQC/multiqc_run.json /hpcdata/scratch/NIAID_scripts/MultiQC/cluster.json $1/$2
 
 module load snakemake
 CLUSTER_OPTS="qsub -pe threaded {cluster.threads} -l h_vmem={cluster.mem} -wd $1/$2/$3"
