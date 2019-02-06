@@ -76,6 +76,19 @@ PATH=$PATH:~/.local/bin
 
 pip install multiqc
 
+Note: In your multiqc.snakemake, change the path of Multiqc in rule multiqc to your local Multiqc directory that you installed using above commands.
+
+Goto $HOME/.local/lib/python2.7/site-packages/multiqc/utils/ and edit snpeff argument in search_patterns.yaml from
+
+snpeff:
+    contents: 'SnpEff_version'
+    max_filesize: 100000    
+         
+         TO        
+
+snpeff:
+    contents: 'SnpEff_version'
+    max_filesize: 130000
 -------End-------
 ##### Tools include the following:
 - FastQC
