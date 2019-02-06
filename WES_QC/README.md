@@ -25,17 +25,17 @@ snakejobs = A Directory where logs of snakemake run are stored
 
 1. Enter the following commands to download and extract Python 2.7 to your hosting account.
  
- mkdir ~/python
+       mkdir ~/python
         
- cd ~/python
+       cd ~/python
         
- wget http://www.python.org/ftp/python/2.7.2/Python-2.7.2.tgz
+       wget http://www.python.org/ftp/python/2.7.2/Python-2.7.2.tgz
         
- tar zxfv Python-2.7.2.tgz
+       tar zxfv Python-2.7.2.tgz
         
- find ~/python -type d | xargs chmod 0755
+       find ~/python -type d | xargs chmod 0755
 
- cd Python-2.7.2
+       cd Python-2.7.2
 
 2. Once extracted you can use the following commands to configure and install Python
 
@@ -51,11 +51,11 @@ snakejobs = A Directory where logs of snakemake run are stored
 
        vim ~/.bashrc
         
- Press i 
+       Press i 
 
  Enter:
         
-        export PATH=$HOME/python/Python-2.7.2/:$PATH
+       export PATH=$HOME/python/Python-2.7.2/:$PATH
         
 4. Write the changes (press ESC) and close vim:
         
