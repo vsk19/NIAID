@@ -89,7 +89,8 @@ snpeff:
 snpeff:
     contents: 'SnpEff_version'
     max_filesize: 130000
--------End-------
+
+***-------End-------***
 ##### Tools include the following:
 - FastQC
 - QualiMap
