@@ -15,15 +15,15 @@ snakejobs = A Directory where logs of snakemake run are stored
 
 **DEPENDENCIES**:
 
-Python2.7
-Pip
-Multiqc1.7
+1. Python2.7
+2. Pip
+3. Multiqc1.7
 
-Install Python2.7 and Pip to the local directory and using pip install MultiQC1.7
+"Install Python2.7 and Pip to the local directory and using pip install MultiQC1.7"
 
 **Installation**:
 
-Enter the following commands to download and extract Python 2.7 to your hosting account.
+1. Enter the following commands to download and extract Python 2.7 to your hosting account.
  
  mkdir ~/python
         
@@ -37,46 +37,48 @@ Enter the following commands to download and extract Python 2.7 to your hosting 
 
  cd Python-2.7.2
 
-**Once extracted you can use the following commands to configure and install Python**
+2. Once extracted you can use the following commands to configure and install Python
 
- ./configure --prefix=$HOME/python
+       ./configure --prefix=$HOME/python
         
- make
+       make
         
- make install
+       make install
 
-Modify the .bashrc
+3. For your local version of python to load you will need to add it to the .bashrc file.
 
-For your local version of python to load you will need to add it to the .bashrc file.
+ Modify the .bashrc
 
- vim ~/.bashrc
+       vim ~/.bashrc
         
  Press i 
 
  Enter:
+        
         export PATH=$HOME/python/Python-2.7.2/:$PATH
         
-Write the changes (press ESC) and close vim:
+4. Write the changes (press ESC) and close vim:
+        
         :wq
         
 Press Enter
+        
         source ~/.bashrc
 
 **Download Pip from**
 
 wget https://bootstrap.pypa.io/get-pip.py
 
-type: python get-pip.py --user (This will install pip to your local directory (.local/bin))
+type: 
+        python get-pip.py --user(This will install pip to your local directory (.local/bin))
 
-set PATH variable for pip in .bashrc file
+5. set PATH variable for pip in .bashrc file
 
-PATH=$PATH:~/.local/bin
+       PATH=$PATH:~/.local/bin
 
 **Download Multqc using following command**
 
 pip install multiqc
-
-Note: In your multiqc.snakemake, change the path of Multiqc in rule multiqc to your local Multiqc directory that you installed using above commands.
 
 Goto $HOME/.local/lib/python2.7/site-packages/multiqc/utils/ and edit snpeff argument in search_patterns.yaml from
 
@@ -84,13 +86,16 @@ snpeff:
     contents: 'SnpEff_version'
     max_filesize: 100000    
          
-         TO        
+TO        
 
 snpeff:
     contents: 'SnpEff_version'
     max_filesize: 130000
 
+Note: In your multiqc.snakemake, change the path of Multiqc in rule multiqc to your local Multiqc directory that you installed using above commands.
+
 ***-------End-------***
+
 ##### Tools include the following:
 - FastQC
 - QualiMap
