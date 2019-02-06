@@ -47,13 +47,13 @@ snakejobs = A Directory where logs of snakemake run are stored
 
 3. For your local version of python to load you will need to add it to the .bashrc file.
 
- Modify the .bashrc
+   Modify the .bashrc
 
        vim ~/.bashrc
         
        Press i 
 
- Enter:
+  Enter:
         
        export PATH=$HOME/python/Python-2.7.2/:$PATH
         
@@ -68,19 +68,18 @@ Press Enter
 **Download Pip from**
 
 wget https://bootstrap.pypa.io/get-pip.py
-
-type: 
+ 
         python get-pip.py --user(This will install pip to your local directory (.local/bin))
 
 5. set PATH variable for pip in .bashrc file
 
        PATH=$PATH:~/.local/bin
 
-**Download Multqc using following command**
+6. Download Multqc using following command
 
-pip install multiqc
+       pip install multiqc
 
-Goto $HOME/.local/lib/python2.7/site-packages/multiqc/utils/ and edit snpeff argument in search_patterns.yaml from
+7. Goto $HOME/.local/lib/python2.7/site-packages/multiqc/utils/ and edit snpeff argument in search_patterns.yaml from
 
 snpeff:
     contents: 'SnpEff_version'
