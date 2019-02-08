@@ -68,4 +68,5 @@ rule multiqc:
  			  expand(join("SNPeff/{Sample}/{Sample}"),Sample = BAM_ID), 
  			  expand(join("BCFStats/{Sample}"),Sample = BAM_ID)
  		output:out1 = "BatchQC_Report.html", out2 = "CumulativeQC_Report.html"
- 		shell:"$HOME/.local/bin/multiqc -f -n {output.out1} .;multiqc -f -n {output.out2} ../"
+ 		shell:"module load multiqc;multiqc --cl_config {params.patterns} -f -n {output.out1} .;multiqc --cl_config {params.patterns} -f -n {output.out2} ../"
+
