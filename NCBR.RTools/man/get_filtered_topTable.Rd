@@ -14,7 +14,7 @@ get_filtered_topTable(theFit, theCoef = NULL, q = 0.05, n = 10,
 
 \item{q}{minimum FDR / q / adjusted p-value to include (default=0.05)}
 
-\item{n}{maximum number of rows to include in the final output dataframe (default = 10)}
+\item{n}{maximum number of rows to include in the final output dataframe. Use "all" to include all significant rows (default = 10)}
 
 \item{lFC}{minimum log2 fold change to include either up or down (abs(logFC)) (default = 0.58 = FC of 1.5)}
 

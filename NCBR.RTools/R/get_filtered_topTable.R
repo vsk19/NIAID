@@ -23,7 +23,7 @@
 #' @param theFit a limma fit (MArrayLM) object
 #' @param theCoef the coefficient in the fit object to analyze (default=NULL)
 #' @param q minimum FDR / q / adjusted p-value to include (default=0.05)
-#' @param n maximum number of rows to include in the final output dataframe (default = 10)
+#' @param n maximum number of rows to include in the final output dataframe. Use "all" to include all significant rows (default = 10)
 #' @param lFC minimum log2 fold change to include either up or down (abs(logFC)) (default = 0.58 = FC of 1.5)
 #' @param addGene parse out the gene name from the gene ID reported with CCBR Pipeliner (default = TRUE)
 #' @param miRNA boolean, specifying if fit object is an miRNA DGELRT object (default=FALSE)

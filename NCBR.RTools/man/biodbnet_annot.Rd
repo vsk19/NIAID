@@ -5,7 +5,7 @@
 \title{Annotate genes using bioDBnet}
 \usage{
 biodbnet_annot(genes = NULL, gfile = NULL, outfile = NULL,
-  taxonID = 9606, maxN = 1000, delim = "\\t")
+  taxonID = 9606, maxN = 500, delim = "\\t")
 }
 \arguments{
 \item{genes}{input character vector of gene symbols (default=NULL)}
@@ -16,7 +16,7 @@ biodbnet_annot(genes = NULL, gfile = NULL, outfile = NULL,
 
 \item{taxonID}{taxonomic ID for the gene list (default=9606 for Homo sapiens, use 10090 for Mus musculus)}
 
-\item{maxN}{maximum number of genes to send in each curl command (default=1000)}
+\item{maxN}{maximum number of genes to send in each curl command (default=500)}
 
 \item{delim}{field delimiter used in output text file (default=tab)}
 }

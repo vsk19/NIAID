@@ -9,8 +9,13 @@ load_RawCountsGroup(counts_file, groups_file)
 \arguments{
 \item{counts_file}{raw counts file from the RNASeq pipeline (RawCountFile_RSEM_genes.txt)}
 
-\item{groups_file}{groups file from RNASeq pipeline, tab-delimited
-Col1 = SampleID, Col2 = group, Col3 = SampleName, Col4..Col# covariates}
+\item{metadata_file}{metadata file from RNASeq pipeline, tab-delimited, with header
+          Col1 = SampleID, 
+          Col2 = Group 
+          Col3 = SampleName, 
+          Col4 = Genotype, e.g., KO and WT or Tumor and NonTumor (expects 2 values)
+          Col5 = Treatment, e.g., Condition1 and Condition2, Treated and Untreated (any number of values)
+Note: Group = Treatment + "_" + Genotype}
 }
 \value{
 list object with [[1]] = numeric matrix of raw count data, 
@@ -18,9 +23,11 @@ list object with [[1]] = numeric matrix of raw count data,
 }
 \description{
 Imports a raw counts file from the RNASeq pipeliner output (RawCountFile_RSEM_genes.txt)
- and a groups or targets file with covariates, 
+ and a metadata or targets file with covariates, 
  and creates an numeric matrix of raw counts and covariates dataframe for linear modeling with limma.
- Returns a list containing 1) raw counts matrix and 2) groups/covariates dataframe
+ Returns a list containing 1) raw counts matrix and 2) metadata/covariates dataframe
+ 
+ See notes on format of metadata file
 }
 \examples{
 dfList <- load_RawCountsGroup(counts_file = file.path(dir_data, file_data), 

@@ -75,9 +75,12 @@ merge_topTables <- function(fits, names, coefs, q=0.05, logFC=1, n=10, sortby="l
   theHits <- unique(topHits)
   
   newDF <- cbind(allDFs[[1]][topHits,], allDFs[[2]][topHits,])
-  for(i in 3:length(fits)) {
-    newDF <- cbind(newDF, allDFs[[i]][topHits,])
+  if(length(fits) > 2) {
+    for(i in 3:length(fits)) {
+      newDF <- cbind(newDF, allDFs[[i]][topHits,])
+    }
   }
+  
   
   # Sort the best to the top
   cols <- paste(names, sortby, sep="_")

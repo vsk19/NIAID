@@ -4,8 +4,11 @@
 \alias{plot_de_volcano}
 \title{Create a volcano plot from a limma fit object}
 \usage{
-plot_de_volcano(f, coef, title = "Volcano Plot", maxq = 0.1,
-  minLFC = 1, sigcol = "red", showsub = TRUE, miRNA = FALSE)
+plot_de_volcano(f, coef, title = "Volcano Plot", interactive = TRUE,
+  sigVal = "adj.P.Val", maxp = 0.1, minLFC = 1.5,
+  colSigHigh = "orangered4", colSigLow = "steelblue",
+  colNonLow = "grey50", colNonHigh = "palegreen4", showsub = TRUE,
+  miRNA = FALSE)
 }
 \arguments{
 \item{f}{input limma fit object}
@@ -14,11 +17,21 @@ plot_de_volcano(f, coef, title = "Volcano Plot", maxq = 0.1,
 
 \item{title}{text to use for the plot main title}
 
-\item{maxq}{maximum FDR value of genes considered statistically significant (default=0.1)}
+\item{interactive}{boolean, if TRUE use plot_ly to create an interactive plot, otherwise use ggplot (default=TRUE)}
+
+\item{sigVal}{column used for determining significance, "adj.P.Val" or "P.Value" (default="adj.P.Val")}
+
+\item{maxp}{maximum FDR or P value of genes considered statistically significant (default=0.1)}
 
 \item{minLFC}{minimum log2 foldchange of genes considered biologically significant (default=1)}
 
-\item{sigcol}{color name for the lines and points highlighting significant differential expression (default="red")}
+\item{colSigHigh}{color name for the lines and points highlighting significant differential expression (default="red")}
+
+\item{colSigLow}{color name for the points that are significant but have a low FC (default="green")}
+
+\item{colNonLow}{color name for the points that are not significant and have a low FC (default="grey")}
+
+\item{colNonHigh}{color name for the points that are not significant but have a high FC (default="grey")}
 
 \item{showsub}{boolean, if TRUE show subtitle with counts, if FALSE no subtitling}
 
