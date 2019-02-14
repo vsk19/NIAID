@@ -7,7 +7,7 @@
 ```bash
 # Note: Remove Quotes and do not include "/" after first
 
-bash WESQC "/path/to/BATCH" "BATCH_QC" "snakejobs"
+bash MultiQC.sh "/path/to/BATCH" "BATCH_QC" "snakejobs"
 
 BATCH_QC = A Directory where ouput from Multiqc.snakemake are stored
 snakejobs = A Directory where logs of snakemake run are stored
