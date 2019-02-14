@@ -12,5 +12,5 @@ cd $1/$2
 cp /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/Multiqc.snakemake /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/MultiQC.sh /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/run.json /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/cluster.json $1/$2
 
 module load snakemake
-CLUSTER_OPTS="qsub -pe threaded {cluster.threads} -l h_vmem={cluster.mem} -l h_rt=24:00:00 -wd $1/$2/$3"
+CLUSTER_OPTS="qsub -pe threaded {cluster.threads} -l h_vmem={cluster.mem} -wd $1/$2/$3"
 snakemake -j 30 --cluster-config cluster.json --cluster "$CLUSTER_OPTS" --keep-going --snakefile Multiqc.snakemake > log.txt 2>&1 &
