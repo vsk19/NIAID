@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#ExampleRun: bash WESQC "/path/to/BATCH" "BATCH_QC" "snakejobs" {Note: Remove Quotes and do not include "/" after first argument}
+#ExampleRun: bash MultiQC.sh "/path/to/BATCH" "BATCH_QC" "snakejobs" {Note: Remove Quotes and do not include "/" after first argument}
 
 
 cd $1
