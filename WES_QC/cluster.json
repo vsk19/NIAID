@@ -1,7 +1,7 @@
 {
     "__default__": {
-        "mem": "12G",
-        "threads": "2"
+        "mem": "24G",
+        "threads": "1"
     },
     "qualimap": {
         "threads": "16",
