@@ -58,7 +58,7 @@ rule snpeff:
 	           csv = join("SNPeff/{Sample}/{Sample}"),
 	           html = join("SNPeff/{Sample}/{Sample}.html")
   		params:genome=config['references']['SNPEFF_GENOME'],effconfig=config['references']['SNPEFF_CONFIG']
-  		shell: "module load java/1.8.0_92; java -Xmx12g -jar /hpcdata/scratch/lackjb/snpEff/snpEff.jar -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
+  		shell: "module load java/1.8.0_92; java -Xmx12g -jar /hpcdata/dir/CIDR_DATA_RENAMED/references/snpEff/snpEff.jar -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
 
 rule multiqc:
  		input:expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
@@ -68,5 +68,6 @@ rule multiqc:
  			  expand(join("SNPeff/{Sample}/{Sample}"),Sample = BAM_ID), 
  			  expand(join("BCFStats/{Sample}"),Sample = BAM_ID)
  		output:out1 = "BatchQC_Report.html", out2 = "CumulativeQC_Report.html"
- 		shell:"module load multiqc;multiqc --cl_config {params.patterns} -f -n {output.out1} .;multiqc --cl_config {params.patterns} -f -n {output.out2} ../"
+		params:patterns=config['references']['PATTERNS']
+ 		shell:"module load multiqc;multiqc -c {params.patterns} -f -n {output.out1} .;multiqc -c {params.patterns} -f -n {output.out2} ../../"
 
