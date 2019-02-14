@@ -12,8 +12,8 @@ rule all:
     	  varianteval=expand(join("VariantEval/{Sample}"),Sample = BAM_ID),
     	  snpeff= expand(join("SNPeff/{Sample}/{Sample}"),Sample = BAM_ID),
           bcftools=expand(join("BCFStats/{Sample}"),Sample = BAM_ID),
-          multiqc=join("BatchQC_Report.html"),
- 	  cumulativeqc = join("CumulativeQC_Report.html")
+          multiqc=join("BatchQC_Report.html")
+ 	 # cumulativeqc = join("CumulativeQC_Report.html")
 
 rule fastqc:
 	input: join("../BAM","{Sample}.bam")
@@ -67,7 +67,7 @@ rule multiqc:
  			  expand(join("VariantEval/{Sample}"),Sample = BAM_ID), 
  			  expand(join("SNPeff/{Sample}/{Sample}"),Sample = BAM_ID), 
  			  expand(join("BCFStats/{Sample}"),Sample = BAM_ID)
- 		output:out1 = "BatchQC_Report.html", out2 = "CumulativeQC_Report.html"
+ 		output:out1 = "BatchQC_Report.html" # out2 = "CumulativeQC_Report.html"
 		params:patterns=config['references']['PATTERNS']
- 		shell:"module load multiqc;multiqc -c {params.patterns} -f -n {output.out1} .;multiqc -c {params.patterns} -f -n {output.out2} ../../"
+ 		shell:"module load multiqc;multiqc -c {params.patterns} -f -n {output.out1} .;rm *.tbi"
 
