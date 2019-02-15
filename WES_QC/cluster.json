@@ -9,7 +9,7 @@
     },
     "varianteval":{
     	"threads":"2",
-    	"mem":"12G"
+    	"mem":"24G"
     },
     "fastqc":{
     	"threads":"16",
