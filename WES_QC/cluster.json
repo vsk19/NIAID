@@ -16,7 +16,7 @@
     	"mem":"4G"
     },
     "Gatk_SelectVariants":{
-	"threads":"4",
+	"threads":"2",
 	"mem":"24G"
     }
     
