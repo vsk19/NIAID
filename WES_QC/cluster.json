@@ -4,20 +4,20 @@
         "mem": "12G"
     },
     "qualimap": {
-        "threads": "16",
-        "mem": "4G"
+        "threads": "8",
+        "mem": "8G"
     },
     "varianteval":{
         "threads":"4",
         "mem":"24G"
     },
     "fastqc":{
-        "threads":"16",
-        "mem":"4G"
+        "threads":"8",
+        "mem":"8G"
     },
     "Gatk_SelectVariants":{
         "threads":"2",
-        "mem":"48G"
+        "mem":"64G"
     }
 
 }
