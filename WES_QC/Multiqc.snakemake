@@ -69,5 +69,5 @@ rule multiqc:
  			  expand(join("BCFStats/{Sample}"),Sample = BAM_ID)
  		output:out1 = "BatchQC_Report.html" # out2 = "CumulativeQC_Report.html"
 		params:patterns=config['references']['PATTERNS']
- 		shell:"module load multiqc;multiqc -c {params.patterns} -f -n {output.out1} .;rm *.tbi"
+ 		shell:"module load multiqc;multiqc -c {params.patterns} -f -n {output.out1} ."
 
