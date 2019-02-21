@@ -1,7 +1,7 @@
 
     "__default__": {
         "threads": "4",
-        "mem": "12G"
+        "mem": "24G"
     },
     "qualimap": {
         "threads": "8",
@@ -16,7 +16,7 @@
         "mem":"8G"
     },
     "Gatk_SelectVariants":{
-        "threads":"2",
+        "threads":"1",
         "mem":"64G"
     }
 
