@@ -19,26 +19,28 @@ rule fastqc:
 	input: join("../BAM","{Sample}.bam")
 	output: join("FastQC/{Sample}_fastqc.html")
 	params: adapters=config['references']['fastqc_adapters']
-	threads: 16
+	threads: 8
 	shell: "module load fastqc;fastqc -o FastQC -f fastq --threads {threads} -f bam --contaminants {params.adapters} {input}"
 
 rule qualimap:
  	input: join("../BAM/","{Sample}.bam")
    	output: txt = join("{Sample}","genome_results.txt"), html = join("{Sample}", "qualimapReport.html")
-	threads:16
+	threads:8
    	params:regions=config['references']['REGIONS'], dir = "{Sample}"
    	shell: "module load qualimap;unset DISPLAY; qualimap bamqc -bam {input} --java-mem-size=48G -c gd hg19 -ip -outdir {params.dir} -gff {params.regions} -outformat HTML -nt {threads} --skip-duplicated -nw 500 -p NON-STRAND-SPECIFIC"
 
 rule samtools_flagstats:
   	input:bam= join("../BAM/","{Sample}.bam")
   	output:join("Flagstats/{Sample}.flagstats")
+	benchmark:"Flagstats/{Sample}.tsv"
   	shell: "module load samtools; samtools flagstat {input} > {output}"
 
 rule Gatk_SelectVariants:
         input:selectvariants = expand(join("../VCF/","{VCF}.vcf.gz"),VCF=VCF_ID)
         output:temp(join("{Sample}.vcf.gz"))
         params:genome=config['references']['GENOME'], Sname = "{Sample}"
-        shell: "module load GATK/3.7-0-Java-1.8.0_92;java -Xmx48g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --excludeNonVariants"
+	benchmark:"{Sample}.tsv"
+        shell: "module load GATK/3.7-0-Java-1.8.0_92;java -Xmx64g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --excludeNonVariants"
 
 rule bcftools:
 		input:"{Sample}.vcf.gz"
@@ -49,7 +51,8 @@ rule varianteval:
   		input:vcf = "{Sample}.vcf.gz"
   		output:join("VariantEval/{Sample}")
    		params:genome=config['references']['GENOME'],vcf=config['references']['DBSNP']
-   		threads: 2
+		benchmark:"VariantEval/{Sample}.tsv"
+   		threads: 4
    		shell:"module load GATK/3.7-0-Java-1.8.0_92;java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input.vcf} -nt {threads}"
 
 rule snpeff:
