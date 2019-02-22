@@ -13,4 +13,4 @@ cp /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/Multiqc.snakemake /hpcdata/dir/
 
 module load snakemake
 CLUSTER_OPTS="qsub -pe threaded {cluster.threads} -l h_vmem={cluster.mem} -wd $1/$2/$3"
-snakemake -j 30 --cluster-config cluster.json --cluster "$CLUSTER_OPTS" --keep-going --snakefile Multiqc.snakemake > log.txt 2>&1 &
+snakemake -k --stats snakemake.stats --rerun-incomplete --restart-times 10 -j 50  --cluster-config cluster.json --cluster "$CLUSTER_OPTS" --keep-going --snakefile Multiqc.snakemake > log.txt 2>&1 &
