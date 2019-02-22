@@ -19,6 +19,7 @@ rule fastqc:
 	input: join("../BAM","{Sample}.bam")
 	output: join("FastQC/{Sample}_fastqc.html")
 	params: adapters=config['references']['fastqc_adapters']
+	benchmark:"FastQC/{Sample}.tsv"
 	threads: 8
 	shell: "module load fastqc;fastqc -o FastQC -f fastq --threads {threads} -f bam --contaminants {params.adapters} {input}"
 
@@ -61,7 +62,7 @@ rule snpeff:
 	           csv = join("SNPeff/{Sample}/{Sample}"),
 	           html = join("SNPeff/{Sample}/{Sample}.html")
   		params:genome=config['references']['SNPEFF_GENOME'],effconfig=config['references']['SNPEFF_CONFIG']
-  		shell: "module load java/1.8.0_92; java -Xmx12g -jar /hpcdata/dir/CIDR_DATA_RENAMED/references/snpEff/snpEff.jar -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
+  		shell: "module load java/1.8.0_92; java -Xmx24g -jar /hpcdata/dir/CIDR_DATA_RENAMED/references/snpEff/snpEff.jar -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
 
 rule multiqc:
  		input:expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
