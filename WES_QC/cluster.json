@@ -1,7 +1,8 @@
 {
     "__default__": {
         "threads": "4",
-        "mem": "24G"
+        "mem": "24G",
+        "vmem":"8G"
     },
     "qualimap": {
         "threads": "8",
@@ -9,15 +10,20 @@
     },
     "varianteval":{
         "threads":"4",
-        "mem":"24G"
+        "mem":"96G"
     },
     "fastqc":{
-        "threads":"8",
-        "mem":"8G"
+	"threads":"8",
+        "mem":"48G",
+        "vmem":"8G"
     },
     "Gatk_SelectVariants":{
         "threads":"1",
-        "mem":"64G"
+        "mem":"96G"
+    },
+    "SNPeff":{
+	"threads":"1",
+        "mem":"48G"
     }
 
 }
