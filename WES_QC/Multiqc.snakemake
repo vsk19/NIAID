@@ -40,7 +40,7 @@ rule Gatk_SelectVariants:
         output:temp(join("{Sample}.vcf.gz"))
         params:genome=config['references']['GENOME'], Sname = "{Sample}"
 	benchmark:"{Sample}.tsv"
-        shell: "module load GATK/3.7-0-Java-1.8.0_92;java -Xmx64g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --excludeNonVariants"
+        shell: "module load GATK/3.7-0-Java-1.8.0_92;java -Xmx64g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants"
 
 rule bcftools:
 		input:"{Sample}.vcf.gz"
