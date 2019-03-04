@@ -6,7 +6,8 @@
     },
     "qualimap": {
         "threads": "8",
-        "mem": "10G"
+        "mem": "10G",
+	"vmem": "8G"
     },
     "varianteval":{
         "threads":"4",
