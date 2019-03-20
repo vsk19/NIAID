@@ -1,19 +1,30 @@
 {
     "__default__": {
-        "mem": "12G",
-        "threads": "2"
+        "threads": "4",
+        "mem": "24G",
+        "vmem":"8G"
     },
     "qualimap": {
-        "threads": "16",
-        "mem": "6G"
+        "threads": "8",
+        "mem": "10G",
+	"vmem": "8G"
     },
     "varianteval":{
-    	"threads":"2",
-    	"mem":"12G"
+        "threads":"4",
+        "mem":"60G"
     },
     "fastqc":{
-    	"threads":"16",
-    	"mem":"4G"
+	"threads":"8",
+        "mem":"30G",
+        "vmem":"8G"
+    },
+    "Gatk_SelectVariants":{
+        "threads":"1",
+        "mem":"96G"
+    },
+    "SNPeff":{
+	"threads":"1",
+        "mem":"48G"
     }
-    
+
 }
