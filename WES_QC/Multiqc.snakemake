@@ -11,8 +11,8 @@ rule all:
 	input:fastqc=expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
     		flagstats=expand(join("Flagstats/{Sample}.flagstats"),Sample=BAM_ID),
     		qualimap=expand(join("{Sample}", "qualimapReport.html"),Sample = BAM_ID),
-		collectvarintcallmetrics=expand(join("VarientMetrics/{Sample}"),Sample=VCF_ID),
-		vcftools=expand(join("VCFtools/{Sample}"),Sample=VCF_ID),
+		collectvarintcallmetrics=expand(join("VarientMetrics/{Sample}_VarientMetrics.txt"),Sample=VCF_ID),
+		vcftools=expand(join("VCFtools/{Sample}_vcftools.tsv"),Sample=VCF_ID),
     		varianteval=expand(join("VariantEval/{Sample}"),Sample = BAM_ID),
     		snpeff= expand(join("SNPeff/{Sample}/{Sample}"),Sample = BAM_ID),
     		bcftools=expand(join("BCFStats/{Sample}"),Sample = BAM_ID),
@@ -41,14 +41,14 @@ rule samtools_flagstats:
 
 rule collectvarintcallmetrics:
 	input:metrics = expand(join("../VCF/", "{VCF}.vcf.gz"),VCF=VCF_ID)
-	output:join("VarientMetrics/{Sample}")
+	output:out1=join("VarientMetrics/{Sample}_VarientMetrics.txt")
 	params:vcf=config['references']['DBSNP']
 	benchmark:"{Sample}.tsv"
-	shell:"module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={output} DBSNP={params.vcf} THREAD_COUNTS=4"
+	shell:"module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={output.out1} DBSNP={params.vcf}"
 
 rule vcftools:
 	input:vcftools = expand(join("../VCF/", "{VCF}.vcf.gz"),VCF=VCF_ID)
-	output:join("VCFtools/{Sample}")
+	output:join("VCFtools/{Sample}_vcftools.tsv")
 	shell:"module load vcftools; vcftools --gzvcf {input} --het --out {output}"
 
 rule Gatk_SelectVariants:
@@ -88,5 +88,5 @@ rule multiqc:
  		expand(join("BCFStats/{Sample}"),Sample = BAM_ID)
  	output:out1 = "{dir}_Report.html"
 	params:patterns=config['references']['PATTERNS']
- 	shell:"module load multiqc;multiqc --interactive -c {params.patterns} -f -n {output.out1} ."
+ 	shell:"module load multiqc;multiqc --interactive -c {params.patterns} -f -n {output.out1} --interactive ."
 
