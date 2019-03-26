@@ -11,8 +11,8 @@ rule all:
 	input:fastqc=expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
     		flagstats=expand(join("Flagstats/{Sample}.flagstats"),Sample=BAM_ID),
     		qualimap=expand(join("{Sample}", "qualimapReport.html"),Sample = BAM_ID),
-		collectvarintcallmetrics=expand(join("VarientMetrics/{Sample}_VarientMetrics.txt"),Sample=VCF_ID),
-		vcftools=expand(join("VCFtools/{Sample}_vcftools.tsv"),Sample=VCF_ID),
+			vcftools = expand(join("{VCF}.het"),VCF = VCF_ID),
+			collectvarintcallmetrics = expand(join("{VCF}.variant_calling_detail_metrics"),VCF = VCF_ID),
     		varianteval=expand(join("VariantEval/{Sample}"),Sample = BAM_ID),
     		snpeff= expand(join("SNPeff/{Sample}/{Sample}"),Sample = BAM_ID),
     		bcftools=expand(join("BCFStats/{Sample}"),Sample = BAM_ID),
@@ -22,7 +22,6 @@ rule fastqc:
 	input: join("../BAM","{Sample}.bam")
 	output: join("FastQC/{Sample}_fastqc.html")
 	params: adapters=config['references']['fastqc_adapters']
-	benchmark:"FastQC/{Sample}.tsv"
 	threads: 8
 	shell: "module load fastqc;fastqc -o FastQC -f fastq --threads {threads} -f bam --contaminants {params.adapters} {input}"
 
@@ -36,26 +35,23 @@ rule qualimap:
 rule samtools_flagstats:
 	input:bam= join("../BAM/","{Sample}.bam")
 	output:join("Flagstats/{Sample}.flagstats")
-	benchmark:"Flagstats/{Sample}.tsv"
 	shell: "module load samtools; samtools flagstat {input} > {output}"
 
-rule collectvarintcallmetrics:
-	input:metrics = expand(join("../VCF/", "{VCF}.vcf.gz"),VCF=VCF_ID)
-	output:out1=join("VarientMetrics/{Sample}_VarientMetrics.txt")
-	params:vcf=config['references']['DBSNP']
-	benchmark:"{Sample}.tsv"
-	shell:"module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={output.out1} DBSNP={params.vcf}"
-
 rule vcftools:
-	input:vcftools = expand(join("../VCF/", "{VCF}.vcf.gz"),VCF=VCF_ID)
-	output:join("VCFtools/{Sample}_vcftools.tsv")
-	shell:"module load vcftools; vcftools --gzvcf {input} --het --out {output}"
+	input:vcftools = join("../VCF/", "{VCF}.vcf.gz")
+        output:out=join("{VCF}.het")
+        shell:"module load vcftools; vcftools --gzvcf {input} --het --out {wildcards.VCF}"
+
+rule collectvarintcallmetrics:
+        input:metrics = join("../VCF/", "{VCF}.vcf.gz")
+        output:out = join("{VCF}.variant_calling_detail_metrics")
+        params:vcf=config['references']['DBSNP']
+        shell:"module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={wildcards.VCF} DBSNP={params.vcf}"
 
 rule Gatk_SelectVariants:
 	input:selectvariants = expand(join("../VCF/","{VCF}.vcf.gz"),VCF=VCF_ID)
 	output:temp(join("{Sample}.vcf.gz"))
 	params:genome=config['references']['GENOME'], Sname = "{Sample}"
-	benchmark:"{Sample}.tsv"
 	shell: "module load GATK/3.7-0-Java-1.8.0_92;java -Xmx64g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants"
 
 rule bcftools:
@@ -67,7 +63,6 @@ rule varianteval:
 	input:vcf = "{Sample}.vcf.gz"
 	output:join("VariantEval/{Sample}")
 	params:genome=config['references']['GENOME'],vcf=config['references']['DBSNP']
-	benchmark:"VariantEval/{Sample}.tsv"
 	threads: 4
 	shell:"module load GATK/3.7-0-Java-1.8.0_92;java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input.vcf} -nt {threads}"
 
