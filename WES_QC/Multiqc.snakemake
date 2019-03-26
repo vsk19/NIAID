@@ -11,8 +11,8 @@ rule all:
 	input:fastqc=expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
     		flagstats=expand(join("Flagstats/{Sample}.flagstats"),Sample=BAM_ID),
     		qualimap=expand(join("{Sample}", "qualimapReport.html"),Sample = BAM_ID),
-			vcftools = expand(join("{VCF}.het"),VCF = VCF_ID),
-			collectvarintcallmetrics = expand(join("{VCF}.variant_calling_detail_metrics"),VCF = VCF_ID),
+		vcftools = expand(join("{VCF}.het"),VCF = VCF_ID),
+		collectvarintcallmetrics = expand(join("{VCF}.variant_calling_detail_metrics"),VCF = VCF_ID),
     		varianteval=expand(join("VariantEval/{Sample}"),Sample = BAM_ID),
     		snpeff= expand(join("SNPeff/{Sample}/{Sample}"),Sample = BAM_ID),
     		bcftools=expand(join("BCFStats/{Sample}"),Sample = BAM_ID),
@@ -40,7 +40,7 @@ rule samtools_flagstats:
 rule vcftools:
 	input:vcftools = join("../VCF/", "{VCF}.vcf.gz")
         output:out=join("{VCF}.het")
-        shell:"module load vcftools; vcftools --gzvcf {input} --het --out {wildcards.VCF}"
+        shell:"module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2; vcftools --gzvcf {input} --het --out {wildcards.VCF}"
 
 rule collectvarintcallmetrics:
         input:metrics = join("../VCF/", "{VCF}.vcf.gz")
