@@ -1,18 +1,27 @@
 # NCBR WES QA/QC Pipeline
 
 
-**Whole Exome Sequencing** requires a preliminary quality control check. `wes_qc.snakefile` is a collection of tools put together using Snakemake.
+**Whole Exome Sequencing** requires a preliminary quality control check. `Multiqc.snakefile` is a collection of tools put together using Snakemake.
 
 **USAGE**:
 ```bash
 # Note: Remove Quotes and do not include "/" after first
 
-bash MultiQC.sh "/path/to/BATCH" "BATCH_QC" "snakejobs"
+-->> bash MultiQC.sh "/path/to/BATCH" "BATCH{putbatchnumberhere}_QC" "snakejobs"
 
-BATCH_QC = A Directory where ouput from Multiqc.snakemake are stored
+BATCH{putbatchnumberhere}_QC = A Directory where ouput from Multiqc.snakemake are stored
 snakejobs = A Directory where logs of snakemake run are stored
-```
 
+After successful generation of OUTPUT files, run the following shell script
+
+-->> bash CreateSnakejobReport.sh BATCH{put batch number here} (e.g. bash CreateSnakejobReport.sh BATCH1)
+
+"IF" not successful, following are the reasons:
+
+1. No Samples in VCF file matching the BAM files
+2. No available free nodes on the cluster, eventually terminating the snakejobs abruptly without error
+```
+**Install Dependencies only if not present in your system**
 **DEPENDENCIES**:
 
 1. Python2.7
@@ -99,6 +108,8 @@ Note: In your multiqc.snakemake, change the path of Multiqc in rule multiqc to y
 - FastQC
 - QualiMap
 - Samtools Flagstats
+- CollectVariantCallMetrics
+- VCFtools
 - GATK Select Variants
 - GATK Variant Eval
 - SNPeff
