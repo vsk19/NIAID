@@ -7,7 +7,7 @@ split = strsplit(wd,"/")[[1]][[5]]
 
 batch = read.table(paste0(split,".","het"), header=T)
 
-png("test.png",width= 7,
+png(paste0(split,"_Inbreeding_Coefficient_mqc",".","png",width= 7,
   height    = 4,
   units     = "in",
   res       = 1200,
