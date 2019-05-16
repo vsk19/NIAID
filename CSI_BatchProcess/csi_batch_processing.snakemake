@@ -1,0 +1,126 @@
+#################################
+#
+# snakefile for converting CIDR Sequencing data deliveries to non-PII ready for GRIS upload
+#
+# Susan Huse, susan.huse@nih.gov
+# Frederick National Lab
+# April 10, 2019
+#
+#################################
+## The following lines are to be included in the /bin/sh that calls snakemake with this file
+## module load snakemake/5.3.0-Python-3.5.5
+## module load Python/3.5.1-foss-2016a  # pandas doesn't work with the current version of python, need to load together
+## module load pandas/0.18.0-foss-2016a-Python-3.5.1
+#
+## ln -s /hpcdata/dir/CIDR_DATA_RAW/BATCH${1}/Released_Data_Batch${1}/Holland_WES_Release_${1} rawdata
+## csi_to_gris.py -b X -d "rawdata/Sample_Info" -need to set up the links to rawdata/Sample_Info/
+## CLUSTER_OPTS="sbatch --cpus-per-task={cluster.threads} --mem={cluster.mem} --time={cluster.time} --partition={cluster.partition} --gres=lscratch:100"
+## CLUSTER_OPTS="qsub -pe threaded {cluster.threads} -l h_vmem={cluster.mem} -l virtual_free={cluster.vmem} -wd $1/$2/$3"
+## snakemake -j 71 --cluster-config cluster.json --cluster "$CLUSTER_OPTS" --keep-going > snakemake.output.txt 2>&1 &
+## snakemake --rerun-incomplete --restart-times 10 -j ??? --keep-going --snakefile csi_batch_processing.snakemake > csi_batch_processing.log 2>&1
+
+## 
+## Load python modules
+##
+import os
+from os.path import join
+import pandas as pd
+import re
+import sys
+from glob import glob
+
+##
+## Set initial global variables
+##
+dir_renamed = os.getcwd()
+dir_rawdata = join(dir_renamed, "rawdata")
+batch_number = re.sub("^.*BATCH","",dir_renamed)
+batch_name = "BATCH" + batch_number
+
+dir_rawvcf = join(dir_rawdata, "MultiSampleVCF", "withGenotypeRefinement")
+VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
+VCF = join(dir_rawvcf, VCF)
+fnames = ["cumulative_coverage_counts", "cumulative_coverage_proportions", "gene_summary", "interval_statistics", "interval_summary", "statistics", "summary"]
+
+##
+## Read in the masterkey file 
+##
+df = pd.read_csv("masterkey_batch"+batch_number + ".txt", header=0, sep='\t')
+df = df.loc[(df['Batch_Received'].isin([batch_name, ""])) | (df['Batch_Received'].isnull())]
+dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['CIDR_Exome_ID'].tolist()))
+#print(dict_CIDR)
+
+##
+## Set rule all
+##
+rule all:
+    input: 
+        #bam = expand(join(dir_renamed, "BAM", "{newID}.bam"), newID=list(dict_CIDR.keys())),
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
+        #target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
+        #ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames)
+        
+##
+## Rename the cram files using gatk and a sample mapping file and convert to bam
+##
+rule rename_bams:
+    input: 
+        cram = lambda w: expand(join(dir_rawdata, "CRAM", "{oldID}.cram"), oldID = dict_CIDR[w.newID])
+    output:
+        bam = join(dir_renamed, "BAM", "{newID}.bam") 
+    params: 
+        rname = "Rename_BAMS",
+        oldsearch = lambda w: dict_CIDR[w.newID]
+    shell:
+        """module load samtools
+        samtools view -H {input.cram} | sed -e 's/{params.oldsearch}/{wildcards.newID}/g' > {output.bam}.sam
+        samtools view -b -o {output.bam}.tmp {input.cram}
+        samtools reheader {output.bam}.sam {output.bam}.tmp  > {output.bam}
+        rm {output.bam}.sam {output.bam}.tmp
+        samtools index {output.bam}"""
+
+###
+### Rename the VCF file
+###
+### SUE: need to create one full vcf with tbi, and one batch specific vcf
+rule rename_vcf:
+    input: 
+        vcf = VCF
+
+    output:
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
+        mapa = temp(join(dir_renamed, "vcf_mapping_a.txt")),
+        mapb = temp(join(dir_renamed, "vcf_mapping_b.txt")),
+        first = temp(join(dir_renamed, "VCF", "first.vcf")),
+
+    params:
+        rname = "Rename_VCF",
+        key = dir_renamed + "/masterkey_batch" + batch_number + ".txt",
+        vcf_notgz = temp(join(dir_renamed, "VCF", batch_name + ".vcf")),
+
+    shell:
+        """module load bcftools/1.9-goolf-1.7.20
+        tail -n +2 {params.key} | awk '{{print $3 "\\t" $2}}' > {output.mapa}
+        cut -f 1 {output.mapa} > {output.mapb}
+        bcftools view -S {output.mapb} --force-samples {input.vcf} > {output.first}
+        bcftools reheader -s {output.mapa} -o {params.vcf_notgz} {output.first}
+        bgzip {params.vcf_notgz}
+        tabix -p vcf {output.vcf}"""
+###
+### Rename the QC files
+### 
+rule rename_qc:
+    input:    
+        target = lambda w: [join(dir_rawdata, "Gene_Exonic_Cvg_Reports", "TARGET",  dict_CIDR[w.newID] + ".TARGET_BED.sample_{fname}.csv")],
+        ucsc = lambda w: [join(dir_rawdata, "Gene_Exonic_Cvg_Reports", "UCSC", dict_CIDR[w.newID] + ".UCSC_CODING.sample_{fname}.csv")]
+    output: 
+        target = join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"),
+        ucsc = join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv") 
+    params:
+        rname = "Rename_QC",
+        oldsearch = lambda w: dict_CIDR[w.newID],
+    shell: 
+        """sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.target} > {output.target}
+        sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.ucsc} > {output.ucsc}"""
