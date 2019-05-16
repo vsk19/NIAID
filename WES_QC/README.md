@@ -117,3 +117,5 @@ Note: In your multiqc.snakemake, change the path of Multiqc in rule multiqc to y
 - MultiQC
 
 **If using this pipeline, please acknowledge [NIAID Collaborative Bioinformatics Resource](https://ncbr.ncifcrf.gov/).**
+
+End
