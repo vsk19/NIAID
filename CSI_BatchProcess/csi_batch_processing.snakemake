@@ -28,6 +28,7 @@ import pandas as pd
 import re
 import sys
 from glob import glob
+import datetime
 
 ##
 ## Set initial global variables
@@ -42,6 +43,12 @@ VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
 VCF = join(dir_rawvcf, VCF)
 fnames = ["cumulative_coverage_counts", "cumulative_coverage_proportions", "gene_summary", "interval_statistics", "interval_summary", "statistics", "summary"]
 
+
+## Set variables for rerunnin all of the old pedigrees
+last_batch = str(int(batch_number) - 1)
+dir_peds = "/hpcdata/dir/CIDR_DATA_RENAMED/pedigrees_previous"
+todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
+
 ##
 ## Read in the masterkey file 
 ##
@@ -55,16 +62,17 @@ dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['CIDR_Exome_ID'].tolist()))
 ##
 rule all:
     input: 
-        #bam = expand(join(dir_renamed, "BAM", "{newID}.bam"), newID=list(dict_CIDR.keys())),
+        bam = expand(join(dir_renamed, "BAM", "{newID}.bam"), newID=list(dict_CIDR.keys())),
         vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
         vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
-        #target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
-        #ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames)
+        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
+        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames)
+        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt")
         
 ##
 ## Rename the cram files using gatk and a sample mapping file and convert to bam
 ##
-rule rename_bams:
+#rule rename_bams:
     input: 
         cram = lambda w: expand(join(dir_rawdata, "CRAM", "{oldID}.cram"), oldID = dict_CIDR[w.newID])
     output:
@@ -124,3 +132,22 @@ rule rename_qc:
     shell: 
         """sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.target} > {output.target}
         sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.ucsc} > {output.ucsc}"""
+
+###
+### Create new pedigrees_previous directory and refresh all pedigree files
+###
+rule refresh_peds:
+    output:
+        # should create a list of ped files, but will die if any fail, so only need to test for last
+        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt")
+    params:
+        rname = "Refresh_Peds",
+        dir_peds_today = join(dir_peds, todays_date),
+        last_batch = last_batch
+    shell:
+        """module load python
+        mkdir -p {params.dir_peds_today}
+        cd {params.dir_peds_today}
+        ../run_peds {params.last_batch}"""
+
+

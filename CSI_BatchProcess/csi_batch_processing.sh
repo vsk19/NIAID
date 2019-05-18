@@ -90,7 +90,7 @@ then
     snakemake -npr --snakefile /hpcdata/dir/CIDR_DATA_RENAMED/csi_batch_processing.snakemake
 fi
 
-if [ "$1" == "proces" ]
+if [ "$1" == "process" ]
 then
-    snakemake -k --stats snakemake.stats --rerun-incomplete --restart-times 10 -j 100  --cluster "$CLUSTER_OPTS" --keep-going --snakefile /hpcdata/dir/CIDR_DATA_RENAMED/csi_batch_processing.snakemake > csi_batch_processing.log 2>&1 &
+    snakemake -k --stats snakemake.stats --rerun-incomplete --restart-times 5 -j 100  --cluster "$CLUSTER_OPTS" --keep-going --snakefile /hpcdata/dir/CIDR_DATA_RENAMED/csi_batch_processing.snakemake > csi_batch_processing.log 2>&1 &
 fi
