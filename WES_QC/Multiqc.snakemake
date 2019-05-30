@@ -2,10 +2,16 @@ import os
 from os.path import join
 cd = os.getcwd()
 dir = cd.split('/')[4]
-BAM_ID, = glob_wildcards("../BAM/" + "{ID}.bam")
+#BAM_ID, = glob_wildcards("../BAM/" + "{ID}.bam")
 VCF_ID, = glob_wildcards("../VCF/" + "{ID}.vcf.gz")
 
 configfile:"run.json"
+folder = "../BAM/"
+BAM_ID = []
+for f in os.listdir(folder):
+        absolute_f = os.path.join(folder,f)
+        if not os.path.islink(absolute_f):
+            BAM_ID.append(absolute_f.split("/")[-1].split(".bam")[0])
 
 rule all:
 	input:fastqc=expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
