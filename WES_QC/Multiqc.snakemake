@@ -2,10 +2,16 @@ import os
 from os.path import join
 cd = os.getcwd()
 dir = cd.split('/')[4]
-BAM_ID, = glob_wildcards("../BAM/" + "{ID}.bam")
+#BAM_ID, = glob_wildcards("../BAM/" + "{ID}.bam")
 VCF_ID, = glob_wildcards("../VCF/" + "{ID}.vcf.gz")
 
 configfile:"run.json"
+folder = "../BAM/"
+BAM_ID = []
+for f in os.listdir(folder):
+        absolute_f = os.path.join(folder,f)
+        if not os.path.islink(absolute_f):
+            BAM_ID.append(absolute_f.split("/")[-1].split(".bam")[0])
 
 rule all:
 	input:fastqc=expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
@@ -40,13 +46,13 @@ rule samtools_flagstats:
 rule vcftools:
 	input:vcftools = join("../VCF/", "{VCF}.vcf.gz")
         output:out=join("{VCF}.het")
-        shell:"module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2; vcftools --gzvcf {input} --het --out {wildcards.VCF}"
+        shell:"module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2; vcftools --gzvcf {input} --het --out {wildcards.VCF};module load R/3.5.1;Rscript vcftools_barplot.R"
 
 rule collectvarintcallmetrics:
         input:metrics = join("../VCF/", "{VCF}.vcf.gz")
         output:out = join("{VCF}.variant_calling_detail_metrics")
         params:vcf=config['references']['DBSNP']
-        shell:"module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={wildcards.VCF} DBSNP={params.vcf}"
+        shell:"module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={wildcards.VCF} DBSNP={params.vcf};module load R/3.5.1;Rscript Variant_metrics_barplot.R"
 
 rule Gatk_SelectVariants:
 	input:selectvariants = expand(join("../VCF/","{VCF}.vcf.gz"),VCF=VCF_ID)
