@@ -67,7 +67,11 @@ rule all:
         vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
         target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
         ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames)
-        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt")
+        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
+        "inbreeding/Heterozygous_to_Homozygous_Ratio_mqc.png",
+        "inbreeding/Mean_Homozygous_Tract_Length_mqc.png",
+        expand("CNV/gatk/genotyped_segments_{newID}.vcf"),
+        "BATCH_QC/admixture/admixture_mqc.png",
         
 ##
 ## Rename the cram files using gatk and a sample mapping file and convert to bam
@@ -150,4 +154,42 @@ rule refresh_peds:
         cd {params.dir_peds_today}
         ../run_peds {params.last_batch}"""
 
+###
+### Generate ethnic admixture plot
+###
+rule admixture:
+    input: vcf=join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: plot="BATCH_QC/admixture/admixture_mqc.png",
+            vcf=temp("BATCH_QC/admixture/" + batch_name+ ".merged.knowns.vcf"),
+    params: batch=batch_name, rname = "admixture"
+    shell: """
+         /hpcdata/dir/software/admix_CSI.sh {params.batch}
 
+           """
+
+###
+### CNV Calling
+###
+rule cnv_wes:
+    input: bam = join(dir_renamed, "BAM", "{newID}.bam")
+    output: segs = "CNV/gatk/genotyped_segments_{newID}.vcf",
+            intervals = "CNV/gatk/genotyped_intervals_{newID}.vcf",
+    params: batch=batch_name, rname = "cnv"
+    
+    shell: """
+         /hpcdata/dir/software/gatk_cnvs_master.sh {newID}
+
+           """
+
+###
+### Identify inbreeding outliers
+###
+rule admixture:
+    input: vcf=join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: plota="inbreeding/Heterozygous_to_Homozygous_Ratio_mqc.png",
+            plotb="inbreeding/Mean_Homozygous_Tract_Length_mqc.png",
+    params: batch=batch_name, rname = "inbreeding"
+    shell: """
+         /hpcdata/dir/software/inbreeding.sh {params.batch}
+
+           """
