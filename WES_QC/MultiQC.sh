@@ -9,7 +9,7 @@ cd $1/$2
 mkdir $3
 cd $1/$2
 
-cp /hpcdata/scratch/boddapatia2/NIAID/WES_QC/Variant_metrics_barplot.R /hpcdata/scratch/boddapatia2/NIAID/WES_QC/vcftools_barplot.R /hpcdata/scratch/boddapatia2/NIAID/WES_QC/CreateSnakejobReport.sh /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/Multiqc.snakemake /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/MultiQC.sh /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/run.json /hpcdata/dir/SCRIPTS/NCBR_github/NIAID/WES_QC/cluster.json $1/$2
+cp /nethome/boddapatia2/NIAID/WES_QC/Variant_metrics_barplot.R /nethome/boddapatia2/NIAID/WES_QC/vcftools_barplot.R /nethome/boddapatia2/NIAID/WES_QC/CreateSnakejobReport.sh /nethome/boddapatia2/NIAID/WES_QC/Multiqc.snakemake /nethome/boddapatia2/NIAID/WES_QC/MultiQC.sh /nethome/boddapatia2/NIAID/WES_QC/run.json /nethome/boddapatia2/NIAID/WES_QC/cluster.json $1/$2
 
 
 module load snakemake
