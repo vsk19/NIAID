@@ -83,7 +83,7 @@ fi
 ##
 echo "Run snakemake"
 
-CLUSTER_OPTS="qsub -pe threaded 8 -l h_vmem=32 -l virtual_free=32 -wd $batchdir"
+CLUSTER_OPTS="qsub -e snakejobs/ -o snakejobs/ -pe threaded 4 -l h_vmem=8G -l virtual_free=8G -wd $batchdir"
 
 if [ "$1" == "npr" ]
 then
@@ -92,5 +92,5 @@ fi
 
 if [ "$1" == "process" ]
 then
-    snakemake -k --stats snakemake.stats --rerun-incomplete --restart-times 5 -j 100  --cluster "$CLUSTER_OPTS" --keep-going --snakefile /hpcdata/dir/CIDR_DATA_RENAMED/csi_batch_processing.snakemake > csi_batch_processing.log 2>&1 &
+    snakemake -k --stats snakemake.stats --report pipeRun.html --restart-times 1 --rerun-incomplete -j 100  --cluster "$CLUSTER_OPTS" --keep-going --snakefile /hpcdata/dir/CIDR_DATA_RENAMED/csi_batch_processing.snakemake/hpcdata/dir/CIDR_DATA_RENAMED/BATCH15/csi_batch_processing.snakemake > csi_batch_processing.log 2>&1 &
 fi
