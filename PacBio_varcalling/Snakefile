@@ -1,0 +1,264 @@
+#################################
+#snakefile for implementing PacBio variant calling pipeline
+#Cihan Oguz, cihan.oguz@nih.gov
+#NIAID Collaborative Bioinformatics Resource (NCBR)
+#July 19, 2019
+################################
+################################
+
+DATA_SAMPLES = ["lbc65", "lbc66", "lbc67","lbc68"]
+ref_fasta = "/data/NCBR/rawdata/NCBR-56/ccs_bams/pf3d7.norm.fasta"
+
+
+rule all:
+    input:
+        expand("raw_subreads/{dataset}.raw.fastq", dataset=DATA_SAMPLES),
+        expand("nanoplot_raw/{dataset}/HistogramReadlength_{dataset}.pdf",dataset=DATA_SAMPLES),
+        expand("nanoplot_raw/{dataset}/HistogramReadlength_mqc_{dataset}.png",dataset=DATA_SAMPLES),
+        expand("raw_subreads/{dataset}.raw.fastqc.html",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.ccs.report.txt",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.ccs.bam",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.ccs.fastq",dataset=DATA_SAMPLES),
+        expand("nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_dot_{dataset}.pdf",dataset=DATA_SAMPLES),
+        expand("nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_mqc_{dataset}.png",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.ccs.fastqc.html",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.sort.bam",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.sort.rehead.bam",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.sort.bam.bai",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.sort.rehead.bam.bai",dataset=DATA_SAMPLES),
+        expand("ccs_reads/qualimap/{dataset}/report.html",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.flagstat",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.picardMetrics",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.stats.txt",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.gvcf",dataset=DATA_SAMPLES),
+        expand("ccs_reads/{dataset}.sort.rehead.bam",dataset=DATA_SAMPLES)
+
+
+#rule 1
+rule gener_raw_subreads:
+    input:
+        "/data/NCBR/rawdata/NCBR-77/raw_reads/{dataset}.bam"
+    output:
+        "raw_subreads/{dataset}.raw.fastq"
+    shell:
+        """mkdir -p raw_subreads
+        module load samtools
+        samtools fastq {input} > {output}"""
+
+#rule 2
+rule nano_raw_subreads_1:
+    input:
+        "raw_subreads/{dataset}.raw.fastq"
+    output:
+        "nanoplot_raw/{dataset}/HistogramReadlength_{dataset}.pdf"
+    params:
+        directory = DATA_SAMPLES,
+    shell:
+        """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
+        conda activate base
+        mkdir -p nanoplot_raw
+        mkdir -p nanoplot_raw/{params.directory}
+        NanoPlot -t 12 -o nanoplot_raw/{params.directory} --prefix {params.directory} --maxlength 21000 --minlength 10 -f pdf --fastq {input}"""
+
+#rule 3
+rule nano_raw_subreads_2:
+    input:
+        "nanoplot_raw/{dataset}/HistogramReadlength_{dataset}.pdf"
+    output:
+        "nanoplot_raw/{dataset}/HistogramReadlength_mqc_{dataset}.png"
+    params:
+        directory = DATA_SAMPLES,
+    shell:
+        """module load R
+        Rscript /data/NCBR/apps/pdf2png.R {input} {output}"""
+
+##fastqc on raw subreads
+#rule 4
+rule fastqc_raw_subreads:
+    input:
+        "raw_subreads/{dataset}.raw.fastq"
+    output:
+        "raw_subreads/{dataset}.raw.fastqc.html"
+    shell:
+        """module load fastqc
+        mkdir -p raw_fastqc
+        fastqc -o raw_fastqc -f fastq --threads 12 --extract {input}"""
+
+##HERE'S THE FORK!!! generate CCS reads if there aren't any in the rawdata/ccs_reads directory
+#rule 5
+rule generate_ccs_reads:
+    input:
+        "/data/NCBR/rawdata/NCBR-77/raw_reads/{dataset}.bam"
+        #"/data/NCBR/rawdata/NCBR-77/raw_read_bams/{dataset}.bam"
+    output:
+        report="ccs_reads/{dataset}.ccs.report.txt",
+        bam="ccs_reads/{dataset}.ccs.bam"
+    shell:
+        """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
+        conda activate base
+        mkdir -p ccs_reads
+        ccs --minPredictedAccuracy 0.99 -j 32 --reportFile {output.report} {input} {output.bam}"""
+
+#rule 6
+#IN FORK...extract fastq files
+rule fastq_ccs_reads:
+    input:
+        "ccs_reads/{dataset}.ccs.bam"
+    output:
+        "ccs_reads/{dataset}.ccs.fastq"
+    shell:
+        """samtools {input} > {output}"""
+
+
+
+#rule 7
+rule nano_ccs_reads_1:
+    input:
+        "ccs_reads/{dataset}.ccs.fastq"
+    output:
+        "nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_dot_{dataset}.pdf"
+    params:
+        directory = DATA_SAMPLES,
+    shell:
+        """
+        mkdir -p nanoplot_ccs
+        mkdir -p nanoplot_ccs/{params.directory}
+        NanoPlot -t 12 -o nanoplot_ccs/{params.directory} --prefix {params.directory} --maxlength 21000 --minlength 10 -f pdf --fastq {input}
+        """
+
+#Rscript /data/NCBR/apps/pdf2png.R nanoplot_ccs/$SAMPLE/$SAMPLE_LengthvsQualityScatterPlot_dot.pdf nanoplot_ccs/$SAMPLE/$SAMPLE_LengthvsQualityScatterPlot_mqc.png
+
+#rule 8
+rule nano_ccs_reads_2:
+    input:
+        "nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_dot_{dataset}.pdf"
+    output:
+        "nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_mqc_{dataset}.png"
+    params:
+        directory = DATA_SAMPLES,
+    shell:
+        """module load R
+        Rscript /data/NCBR/apps/pdf2png.R {input} {output}"""
+
+
+##fastqc on ccs reads
+#rule 9
+rule fastqc_ccs_reads:
+    input:
+        "ccs_reads/{dataset}.ccs.fastq"
+    output:
+        "ccs_reads/{dataset}.ccs.fastqc.html"
+    shell:
+        """module load fastqc
+        mkdir -p ccs_fastqc
+        fastqc -o ccs_fastqc -f fastq --threads 12 --extract {input}"""
+
+
+
+##ccs read reference alignment
+#rule 10
+rule ccs_read_ref_align:
+    input:
+        "ccs_reads/{dataset}.ccs.fastq"
+    output:
+        "ccs_reads/{dataset}.sort.bam"
+    params:
+        directory = ref_fasta,
+    shell:
+        """pbmm2 align {params.directory} {input} {output} --preset CCS --sort -j 12"""
+
+
+
+##Add read groups to alignment BAM file
+#rule 11
+rule ccs_readgroup_to_align_bam_1:
+    input:
+        "ccs_reads/{dataset}.sort.bam"
+    output:
+        bai="ccs_reads/{dataset}.sort.bam.bai",
+        rehead_bam="ccs_reads/{dataset}.sort.rehead.bam"
+    params:
+        directory =  DATA_SAMPLES,
+    shell:
+        """samtools index {input}
+        module load picard
+        java -Xmx24g -jar $PICARDJARPATH/picard.jar AddOrReplaceReadGroups I={input} O={output.rehead_bam} Validation_Stringency=LENIENT RGID=1 RGLB={params.directory} RGPL=Sequel RGPU=AAAAAA RGSM={params.directory}
+        """
+
+
+#rule 12
+rule ccs_readgroup_to_align_bam_2:
+    input:
+        "ccs_reads/{dataset}.sort.rehead.bam"
+    output:
+        "ccs_reads/{dataset}.sort.rehead.bam.bai",
+    params:
+        directory =  DATA_SAMPLES,
+    shell:
+        """samtools index {input}"""
+
+
+
+#rule 13
+###Qualimap QC on BAM file
+rule qualimap_qc_on_bam:
+    input:
+        "ccs_reads/{dataset}.sort.rehead.bam"
+    output:
+        "ccs_reads/qualimap/{dataset}/report.html"
+    params:
+        directory = DATA_SAMPLES,
+    shell:
+        """mkdir -p ccs_reads/qualimap
+        mkdir -p ccs_reads/qualimap/{params.directory}
+        module load qualimap/2.2.1
+        unset DISPLAY
+        qualimap bamqc --java-mem-size=48G -bam {input} -c -outdir ccs_reads/qualimap/params.directory -nt 12 -outformat HTML -nw 500 -outfile {output}"""
+
+#rule 14
+##samtools flagstats
+rule samtools_flagstats:
+    input:
+        "ccs_reads/{dataset}.sort.rehead.bam"
+    output:
+        "ccs_reads/{dataset}.flagstat"
+    shell:
+        """samtools flagstat {input} > {output}"""
+
+
+#rule 15
+##Picard BAM Metrics
+rule picard_bam_metrics:
+    input:
+        "ccs_reads/{dataset}.sort.rehead.bam"
+    output:
+        "ccs_reads/{dataset}.picardMetrics"
+    shell:
+        """java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectMultipleMetrics R=$REF I={input} O={output} PROGRAM=CollectAlignmentSummaryMetrics PROGRAM=QualityScoreDistribution PROGRAM=MeanQualityByCycle PROGRAM=CollectBaseDistributionByCycle PROGRAM=CollectGcBiasMetrics PROGRAM=CollectSequencingArtifactMetrics PROGRAM=CollectQualityYieldMetrics"""
+
+#rule 16
+##samtools stats on BAM files
+rule samtools_stats_on_bam_files:
+    input:
+        "ccs_reads/{dataset}.sort.rehead.bam"
+    output:
+        "ccs_reads/{dataset}.stats.txt"
+    params:
+        directory = ref_fasta,
+    shell:
+        """samtools stats --ref-seq {params.directory} {input} > {output}"""
+
+
+#rule 17
+##Generating gVCFs/HaplotypeCaller
+rule gener_gvcfs_haplocaller:
+    input:
+        "ccs_reads/{dataset}.sort.rehead.bam"
+    output:
+        gvcf="ccs_reads/{dataset}.gvcf",
+        calls_bam="ccs_reads/{dataset}.sort.rehead.bam"
+    params:
+        directory = ref_fasta,
+    shell:
+        """module load GATK/4.1.2.0
+        gatk --java-options -Xmx24g HaplotypeCaller -R params.directory -I {input} -O {output.gvcf} --ploidy 1 --annotation-group AS_StandardAnnotation --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60"""
