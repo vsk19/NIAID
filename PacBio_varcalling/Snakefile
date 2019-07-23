@@ -21,17 +21,17 @@ rule all:
         expand("ccs_reads/{dataset}.ccs.fastq",dataset=DATA_SAMPLES),
         expand("nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_dot_{dataset}.pdf",dataset=DATA_SAMPLES),
         expand("nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_mqc_{dataset}.png",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.ccs.fastqc.html",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.sort.bam",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.sort.rehead.bam",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.sort.bam.bai",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.sort.rehead.bam.bai",dataset=DATA_SAMPLES),
-        expand("ccs_reads/qualimap/{dataset}/report.html",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.flagstat",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.picardMetrics",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.stats.txt",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.gvcf",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.sort.rehead.bam",dataset=DATA_SAMPLES)
+        expand("{dataset}.ccs.fastqc.html",dataset=DATA_SAMPLES),
+        expand("{dataset}.sort.bam",dataset=DATA_SAMPLES),
+        expand("{dataset}.sort.rehead.bam",dataset=DATA_SAMPLES),
+        expand("{dataset}.sort.bam.bai",dataset=DATA_SAMPLES),
+        expand("{dataset}.sort.rehead.bam.bai",dataset=DATA_SAMPLES),
+        expand("qualimap/{dataset}/report.html",dataset=DATA_SAMPLES),
+        expand("{dataset}.flagstat",dataset=DATA_SAMPLES),
+        expand("{dataset}.picardMetrics",dataset=DATA_SAMPLES),
+        expand("{dataset}.stats.txt",dataset=DATA_SAMPLES),
+        expand("{dataset}.gvcf",dataset=DATA_SAMPLES),
+        expand("{dataset}.calls.bam",dataset=DATA_SAMPLES)
 
 
 #rule 1
@@ -147,7 +147,7 @@ rule fastqc_ccs_reads:
     input:
         "ccs_reads/{dataset}.ccs.fastq"
     output:
-        "ccs_reads/{dataset}.ccs.fastqc.html"
+        "{dataset}.ccs.fastqc.html"
     shell:
         """module load fastqc
         mkdir -p ccs_fastqc
@@ -161,7 +161,7 @@ rule ccs_read_ref_align:
     input:
         "ccs_reads/{dataset}.ccs.fastq"
     output:
-        "ccs_reads/{dataset}.sort.bam"
+        "{dataset}.sort.bam"
     params:
         directory = ref_fasta,
     shell:
@@ -173,10 +173,10 @@ rule ccs_read_ref_align:
 #rule 11
 rule ccs_readgroup_to_align_bam_1:
     input:
-        "ccs_reads/{dataset}.sort.bam"
+        "{dataset}.sort.bam"
     output:
-        bai="ccs_reads/{dataset}.sort.bam.bai",
-        rehead_bam="ccs_reads/{dataset}.sort.rehead.bam"
+        bai="{dataset}.sort.bam.bai",
+        rehead_bam="{dataset}.sort.rehead.bam"
     params:
         directory =  DATA_SAMPLES,
     shell:
@@ -189,9 +189,9 @@ rule ccs_readgroup_to_align_bam_1:
 #rule 12
 rule ccs_readgroup_to_align_bam_2:
     input:
-        "ccs_reads/{dataset}.sort.rehead.bam"
+        "{dataset}.sort.rehead.bam"
     output:
-        "ccs_reads/{dataset}.sort.rehead.bam.bai",
+        "{dataset}.sort.rehead.bam.bai",
     params:
         directory =  DATA_SAMPLES,
     shell:
@@ -203,9 +203,9 @@ rule ccs_readgroup_to_align_bam_2:
 ###Qualimap QC on BAM file
 rule qualimap_qc_on_bam:
     input:
-        "ccs_reads/{dataset}.sort.rehead.bam"
+        "{dataset}.sort.rehead.bam"
     output:
-        "ccs_reads/qualimap/{dataset}/report.html"
+        "qualimap/{dataset}/report.html"
     params:
         directory = DATA_SAMPLES,
     shell:
@@ -219,9 +219,9 @@ rule qualimap_qc_on_bam:
 ##samtools flagstats
 rule samtools_flagstats:
     input:
-        "ccs_reads/{dataset}.sort.rehead.bam"
+        "{dataset}.sort.rehead.bam"
     output:
-        "ccs_reads/{dataset}.flagstat"
+        "{dataset}.flagstat"
     shell:
         """samtools flagstat {input} > {output}"""
 
@@ -230,9 +230,9 @@ rule samtools_flagstats:
 ##Picard BAM Metrics
 rule picard_bam_metrics:
     input:
-        "ccs_reads/{dataset}.sort.rehead.bam"
+        "{dataset}.sort.rehead.bam"
     output:
-        "ccs_reads/{dataset}.picardMetrics"
+        "{dataset}.picardMetrics"
     shell:
         """java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectMultipleMetrics R=$REF I={input} O={output} PROGRAM=CollectAlignmentSummaryMetrics PROGRAM=QualityScoreDistribution PROGRAM=MeanQualityByCycle PROGRAM=CollectBaseDistributionByCycle PROGRAM=CollectGcBiasMetrics PROGRAM=CollectSequencingArtifactMetrics PROGRAM=CollectQualityYieldMetrics"""
 
@@ -240,9 +240,9 @@ rule picard_bam_metrics:
 ##samtools stats on BAM files
 rule samtools_stats_on_bam_files:
     input:
-        "ccs_reads/{dataset}.sort.rehead.bam"
+        "{dataset}.sort.rehead.bam"
     output:
-        "ccs_reads/{dataset}.stats.txt"
+        "{dataset}.stats.txt"
     params:
         directory = ref_fasta,
     shell:
@@ -253,10 +253,10 @@ rule samtools_stats_on_bam_files:
 ##Generating gVCFs/HaplotypeCaller
 rule gener_gvcfs_haplocaller:
     input:
-        "ccs_reads/{dataset}.sort.rehead.bam"
+        "{dataset}.sort.rehead.bam"
     output:
-        gvcf="ccs_reads/{dataset}.gvcf",
-        calls_bam="ccs_reads/{dataset}.sort.rehead.bam"
+        gvcf="{dataset}.gvcf",
+        calls_bam="{dataset}.calls.bam"
     params:
         directory = ref_fasta,
     shell:
