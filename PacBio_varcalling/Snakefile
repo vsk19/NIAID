@@ -163,9 +163,9 @@ rule ccs_read_ref_align:
     output:
         "{dataset}.sort.bam"
     params:
-        directory = ref_fasta,
+        ref = ref_fasta,
     shell:
-        """pbmm2 align {params.directory} {input} {output} --preset CCS --sort -j 12"""
+        """pbmm2 align {params.ref} {input} {output} --preset CCS --sort -j 12"""
 
 
 
@@ -180,7 +180,9 @@ rule ccs_readgroup_to_align_bam_1:
     params:
         directory =  DATA_SAMPLES,
     shell:
-        """samtools index {input}
+        """
+        module load samtools
+        samtools index {input}
         module load picard
         java -Xmx24g -jar $PICARDJARPATH/picard.jar AddOrReplaceReadGroups I={input} O={output.rehead_bam} Validation_Stringency=LENIENT RGID=1 RGLB={params.directory} RGPL=Sequel RGPU=AAAAAA RGSM={params.directory}
         """
@@ -195,15 +197,46 @@ rule ccs_readgroup_to_align_bam_2:
     params:
         directory =  DATA_SAMPLES,
     shell:
-        """samtools index {input}"""
+        """
+        module load samtools
+        samtools index {input}
+        """
 
+rule realign:
+    input:
+        bam="{dataset}.sort.rehead.bam",
+        index="{dataset}.sort.rehead.bam.bai"
+    output:
+        bam="{dataset}.realign.bam",
+        int="{dataset}.intervals",
+    params:
+        directory =  DATA_SAMPLES,ref = ref_fasta,
+    shell:
+        """
+        module load GATK/3.8-0
+        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
+        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
+        """
 
+rule bam_recal:
+    input:
+        bam="{dataset}.realign.bam",
+    output:
+        bam="{dataset}.recal.bam",
+    params:
+        directory =  DATA_SAMPLES,ref = ref_fasta,
+    shell:
+        """
+        module load GATK/3.8-0
+        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
+        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
+        """
 
 #rule 13
 ###Qualimap QC on BAM file
 rule qualimap_qc_on_bam:
     input:
-        "{dataset}.sort.rehead.bam"
+        "{dataset}.recal.bam",
     output:
         "qualimap/{dataset}/report.html"
     params:
