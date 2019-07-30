@@ -19,14 +19,14 @@ rule all:
         expand("ccs_reads/{dataset}.ccs.report.txt",dataset=DATA_SAMPLES),
         expand("ccs_reads/{dataset}.ccs.bam",dataset=DATA_SAMPLES),
         expand("ccs_reads/{dataset}.ccs.fastq",dataset=DATA_SAMPLES),
-        expand("nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_dot_{dataset}.pdf",dataset=DATA_SAMPLES),
-        expand("nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_mqc_{dataset}.png",dataset=DATA_SAMPLES),
-        expand("{dataset}.ccs.fastqc.html",dataset=DATA_SAMPLES),
+        expand("nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_dot.pdf",dataset=DATA_SAMPLES),
+        expand("nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_mqc.png",dataset=DATA_SAMPLES),
+        expand("ccs_fastqc/{dataset}.ccs_fastqc.html",dataset=DATA_SAMPLES),
         expand("{dataset}.sort.bam",dataset=DATA_SAMPLES),
         expand("{dataset}.sort.rehead.bam",dataset=DATA_SAMPLES),
         expand("{dataset}.sort.bam.bai",dataset=DATA_SAMPLES),
         expand("{dataset}.sort.rehead.bam.bai",dataset=DATA_SAMPLES),
-        expand("qualimap/{dataset}/report.html",dataset=DATA_SAMPLES),
+        expand("qualimap/{dataset}/qualimapReport.html",dataset=DATA_SAMPLES),
         expand("{dataset}.flagstat",dataset=DATA_SAMPLES),
         expand("{dataset}.picardMetrics",dataset=DATA_SAMPLES),
         expand("{dataset}.stats.txt",dataset=DATA_SAMPLES),
@@ -107,33 +107,33 @@ rule fastq_ccs_reads:
     output:
         "ccs_reads/{dataset}.ccs.fastq"
     shell:
-        """samtools {input} > {output}"""
+        """module load samtools
+        mkdir -p ccs_reads
+        samtools fastq {input} > {output}"""
 
 
-
-#rule 7
+##rule 7
 rule nano_ccs_reads_1:
     input:
         "ccs_reads/{dataset}.ccs.fastq"
     output:
-        "nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_dot_{dataset}.pdf"
+        "nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_dot.pdf"
     params:
         directory = DATA_SAMPLES,
     shell:
-        """
+        """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
+        conda activate base
         mkdir -p nanoplot_ccs
         mkdir -p nanoplot_ccs/{params.directory}
         NanoPlot -t 12 -o nanoplot_ccs/{params.directory} --prefix {params.directory} --maxlength 21000 --minlength 10 -f pdf --fastq {input}
         """
 
-#Rscript /data/NCBR/apps/pdf2png.R nanoplot_ccs/$SAMPLE/$SAMPLE_LengthvsQualityScatterPlot_dot.pdf nanoplot_ccs/$SAMPLE/$SAMPLE_LengthvsQualityScatterPlot_mqc.png
-
 #rule 8
 rule nano_ccs_reads_2:
     input:
-        "nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_dot_{dataset}.pdf"
+        "nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_dot.pdf"
     output:
-        "nanoplot_ccs/{dataset}/LengthvsQualityScatterPlot_mqc_{dataset}.png"
+        "nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_mqc.png"
     params:
         directory = DATA_SAMPLES,
     shell:
@@ -147,11 +147,11 @@ rule fastqc_ccs_reads:
     input:
         "ccs_reads/{dataset}.ccs.fastq"
     output:
-        "{dataset}.ccs.fastqc.html"
+        "ccs_fastqc/{dataset}.ccs_fastqc.html"
     shell:
         """module load fastqc
         mkdir -p ccs_fastqc
-        fastqc -o ccs_fastqc -f fastq --threads 12 --extract {input}"""
+        fastqc -o ccs_fastqc -f fastq --threads 8 --extract {input}"""
 
 
 
@@ -165,12 +165,13 @@ rule ccs_read_ref_align:
     params:
         ref = ref_fasta,
     shell:
-        """pbmm2 align {params.ref} {input} {output} --preset CCS --sort -j 12"""
+        """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
+        conda activate base
+        pbmm2 align {params.directory} {input} {output} --preset CCS --sort -j 12"""
+#--sort already generating a bam.bai
 
-
-
-##Add read groups to alignment BAM file
-#rule 11
+# ##Add read groups to alignment BAM file
+# #rule 11
 rule ccs_readgroup_to_align_bam_1:
     input:
         "{dataset}.sort.bam"
@@ -180,15 +181,14 @@ rule ccs_readgroup_to_align_bam_1:
     params:
         directory =  DATA_SAMPLES,
     shell:
-        """
-        module load samtools
+        """module load samtools
         samtools index {input}
         module load picard
         java -Xmx24g -jar $PICARDJARPATH/picard.jar AddOrReplaceReadGroups I={input} O={output.rehead_bam} Validation_Stringency=LENIENT RGID=1 RGLB={params.directory} RGPL=Sequel RGPU=AAAAAA RGSM={params.directory}
-        """
-
-
-#rule 12
+#         """
+#
+#
+# #rule 12
 rule ccs_readgroup_to_align_bam_2:
     input:
         "{dataset}.sort.rehead.bam"
@@ -197,57 +197,27 @@ rule ccs_readgroup_to_align_bam_2:
     params:
         directory =  DATA_SAMPLES,
     shell:
-        """
-        module load samtools
-        samtools index {input}
-        """
-
-rule realign:
-    input:
-        bam="{dataset}.sort.rehead.bam",
-        index="{dataset}.sort.rehead.bam.bai"
-    output:
-        bam="{dataset}.realign.bam",
-        int="{dataset}.intervals",
-    params:
-        directory =  DATA_SAMPLES,ref = ref_fasta,
-    shell:
-        """
-        module load GATK/3.8-0
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
-        """
-
-rule bam_recal:
-    input:
-        bam="{dataset}.realign.bam",
-    output:
-        bam="{dataset}.recal.bam",
-    params:
-        directory =  DATA_SAMPLES,ref = ref_fasta,
-    shell:
-        """
-        module load GATK/3.8-0
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
-        """
-
-#rule 13
-###Qualimap QC on BAM file
+        """module load samtools
+        samtools index {input}"""
+#
+#
+#
+# #rule 13
+# ###Qualimap QC on BAM file
 rule qualimap_qc_on_bam:
     input:
         "{dataset}.recal.bam",
     output:
-        "qualimap/{dataset}/report.html"
+        "qualimap/{dataset}/qualimapReport.html"
     params:
         directory = DATA_SAMPLES,
     shell:
-        """mkdir -p ccs_reads/qualimap
-        mkdir -p ccs_reads/qualimap/{params.directory}
+        """mkdir -p qualimap
+        mkdir -p qualimap/{params.directory}
         module load qualimap/2.2.1
         unset DISPLAY
-        qualimap bamqc --java-mem-size=48G -bam {input} -c -outdir ccs_reads/qualimap/params.directory -nt 12 -outformat HTML -nw 500 -outfile {output}"""
-
+        qualimap bamqc --java-mem-size=48G -bam {input} -c -outdir qualimap/{params.directory} -nt 12 -outformat HTML -nw 500 -outfile {output}"""
+#
 #rule 14
 ##samtools flagstats
 rule samtools_flagstats:
@@ -256,7 +226,8 @@ rule samtools_flagstats:
     output:
         "{dataset}.flagstat"
     shell:
-        """samtools flagstat {input} > {output}"""
+        """module load samtools
+        samtools flagstat {input} > {output}"""
 
 
 #rule 15
@@ -279,7 +250,8 @@ rule samtools_stats_on_bam_files:
     params:
         directory = ref_fasta,
     shell:
-        """samtools stats --ref-seq {params.directory} {input} > {output}"""
+        """module load samtools
+        samtools stats --ref-seq {params.directory} {input} > {output}"""
 
 
 #rule 17
@@ -294,4 +266,4 @@ rule gener_gvcfs_haplocaller:
         directory = ref_fasta,
     shell:
         """module load GATK/4.1.2.0
-        gatk --java-options -Xmx24g HaplotypeCaller -R params.directory -I {input} -O {output.gvcf} --ploidy 1 --annotation-group AS_StandardAnnotation --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60"""
+        gatk --java-options -Xmx24g HaplotypeCaller -R {params.directory} -I {input} -O {output.gvcf} --ploidy 1 --annotation-group AS_StandardAnnotation --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60"""
