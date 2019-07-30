@@ -22,10 +22,7 @@ rule all:
         expand("nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_dot.pdf",dataset=DATA_SAMPLES),
         expand("nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_mqc.png",dataset=DATA_SAMPLES),
         expand("ccs_fastqc/{dataset}.ccs_fastqc.html",dataset=DATA_SAMPLES),
-        expand("{dataset}.sort.bam",dataset=DATA_SAMPLES),
-        expand("{dataset}.sort.rehead.bam",dataset=DATA_SAMPLES),
-        expand("{dataset}.sort.bam.bai",dataset=DATA_SAMPLES),
-        expand("{dataset}.sort.rehead.bam.bai",dataset=DATA_SAMPLES),
+        expand("{dataset}.realign.bam",dataset=DATA_SAMPLES),
         expand("qualimap/{dataset}/qualimapReport.html",dataset=DATA_SAMPLES),
         expand("{dataset}.flagstat",dataset=DATA_SAMPLES),
         expand("{dataset}.picardMetrics",dataset=DATA_SAMPLES),
@@ -221,13 +218,14 @@ rule bam_recal:
         bam="{dataset}.realign.bam",
     output:
         bam="{dataset}.recal.bam",
+        re="{dataset}.recal.txt",
     params:
         directory =  DATA_SAMPLES,ref = ref_fasta,
     shell:
         """
-        module load GATK/3.8-0
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
+        module load GATK/4.1.2.0
+        gatk BaseRecalibrator -I {input} -R {params.genome} {params.knowns} -O {output.re}
+        gatk ApplyBQSR -R {params.genome} -I {input} --bqsr-recal-file {output.re} -o {output.bam}
         """
 
 #
@@ -237,7 +235,7 @@ rule bam_recal:
 # ###Qualimap QC on BAM file
 rule qualimap_qc_on_bam:
     input:
-        "{dataset}.recal.bam",
+        "{dataset}.realign.bam",
     output:
         "qualimap/{dataset}/qualimapReport.html"
     params:
@@ -287,14 +285,132 @@ rule samtools_stats_on_bam_files:
 
 #rule 17
 ##Generating gVCFs/HaplotypeCaller
-rule gener_gvcfs_haplocaller:
+rule gvcf_haplo:
     input:
-        "{dataset}.sort.rehead.bam"
+        "{dataset}.realign.bam"
     output:
         gvcf="{dataset}.gvcf",
         calls_bam="{dataset}.calls.bam"
     params:
-        directory = ref_fasta,
+        ref = ref_fasta,
     shell:
         """module load GATK/4.1.2.0
-        gatk --java-options -Xmx24g HaplotypeCaller -R {params.directory} -I {input} -O {output.gvcf} --ploidy 1 --annotation-group AS_StandardAnnotation --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60"""
+        gatk HaplotypeCaller -R {params.ref} -I {input} -O {output.gvcf} --ploidy 1 --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"""
+
+##Generating gVCFs/HaplotypeCaller
+rule joint_haplo:
+    input: expand("{dataset}.realign.bam")
+    output:
+        vcf="joint_vcfs/joint_raw.vcf",
+    params:
+        ref = ref_fasta,
+    shell:
+        fl=os.popen("ls *.realign.bam").read().split()      
+        var=" -I "+" -I ".join(fl)
+        cmd="mkdir -p joint_vcfs; module load GATK/4.1.2.0; gatk HaplotypeCaller -R {params.ref} -O {output.vcf} --ploidy 1 --pcr-indel-model AGGRESSIVE --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"+var
+        print(cmd)
+        shell(cmd)
+
+##Combining gVCFs
+rule combo_gvcfs:
+    input: expand("{dataset}.gvcf")
+    output:
+        gvcf="merged.gvcf",
+    params:
+        ref = ref_fasta,
+    shell:
+        fl=os.popen("ls *.gvcf").read().split()
+        var=" --variant "+" --variant ".join(fl)
+        cmd="module load GATK/4.1.2.0; gatk CombineGVCFs -R {params.ref} -O {output.gvcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"+var
+        print(cmd)
+        shell(cmd)
+
+##Genotype gVCFs
+rule genotyping:
+    input: gvcf="merged.gvcf",
+    output:
+        vcf="raw_variants.vcf",
+    params:
+        ref = ref_fasta,
+    shell:
+        cmd="module load GATK/4.1.2.0; gatk GenotypeGVCFs -R {params.ref} -O {output.vcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"
+        print(cmd)
+        shell(cmd)
+
+##Filter VCFs
+rule filter:
+    input: vcf="raw_variants.vcf",
+    output:
+        snps="snps.vcf",
+        shortindels="1bpindels.vcf",
+        indels="indels.vcf",
+        flagsnps="snps.flagged.vcf",
+        flagshort="1bpindels.flagged.vcf",
+        flagindels="indels.flagged.vcf",
+        flagmerged="merged.flagged.vcf",
+        filtered="filtered.vcf",
+        bcftools="filtered.bcftools",
+        vep="filtered.vep",
+#        snpeffcsv=""filtered.snpeff.csv"
+#        snpeffstats=""filtered.snpeff.html"
+    params:
+        ref = ref_fasta,gff="/data/NCBR/projects/NCBR-77/PlasmoDB-44_PfalciparumDd2.sorted.gff.gz"
+    shell:
+        """
+        module load GATK/4.1.2.0
+        gatk SelectVariants -R {params.ref} --variant {input.vcf} -O {output.snps} --select-type-to-include SNP --exclude-filtered
+        gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.shortindels} --max-indel-size 1 --min-indel-size 1
+        gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.indels} --min-indel-size 2
+        gatk VariantFiltration -R {params.ref} --variant {output.snps} --filter-expression "AS_QD < 2.0" --filter-name "my_snp_filter" -O {output.flagsnps}
+        gatk VariantFiltration -R {params.ref} --variant {output.shortindels} --filter-expression "AS_QD < 5.0" --filter-name "my_shortindel_filter" -O {output.flagshort}
+        gatk VariantFiltration -R {params.ref} --variant {output.indels} --filter-expression "AS_QD < 2.0" --filter-name "my_indel_filter" -O {output.flagindels}
+        gatk MergeVcfs -I={output.flagsnps} -I={output.flagshort} -I={output.flagindels} -O={output.flagmerged}
+        gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
+        module load samtools
+        bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
+        module load VEP
+        vep -sf joint_variants.filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick
+#        java -jar /data/lackjb/snpEff/snpEff.jar -canon -csvStats {output.snpeffcsv} -stats {output.snpeffstats} -o bedAnn {params.species} joint_variants.filtered.vcf > joint_variants.filtered.annotations.bed
+        """
+
+##Filter joint VCFs
+rule filter_joint:
+    input: vcf="joint_vcfs/joint_raw.vcf",
+    output:
+        snps="joint_vcfs/snps.vcf",
+        shortindels="joint_vcfs/1bpindels.vcf",
+        indels="joint_vcfs/indels.vcf",
+        flagsnps="joint_vcfs/snps.flagged.vcf",
+        flagshort="joint_vcfs/1bpindels.flagged.vcf",
+        flagindels="joint_vcfs/indels.flagged.vcf",
+        flagmerged="joint_vcfs/merged.flagged.vcf",
+        filtered="joint_vcfs/filtered.vcf",
+    params:
+        ref = ref_fasta,
+    shell:
+        """
+        module load GATK/4.1.2.0
+        gatk SelectVariants -R {params.ref} --variant {input.vcf} -O {output.snps} --select-type-to-include SNP --exclude-filtered
+        gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.shortindels} --max-indel-size 1 --min-indel-size 1
+        gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.indels} --min-indel-size 2
+        gatk VariantFiltration -R {params.ref} --variant {output.snps} --filter-expression "AS_QD < 2.0" --filter-name "my_snp_filter" -O {output.flagsnps}
+        gatk VariantFiltration -R {params.ref} --variant {output.shortindels} --filter-expression "AS_QD < 5.0" --filter-name "my_shortindel_filter" -O {output.flagshort}
+        gatk VariantFiltration -R {params.ref} --variant {output.indels} --filter-expression "AS_QD < 2.0" --filter-name "my_indel_filter" -O {output.flagindels}
+        gatk MergeVcfs -I={output.flagsnps} -I={output.flagshort} -I={output.flagindels} -O={output.flagmerged}
+        gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
+        """
+
+##Generating gVCFs/HaplotypeCaller
+rule extract_sample_variants:
+    input:
+        "{dataset}.realign.bam"
+    output:
+        gvcf="{dataset}.gvcf",
+        calls_bam="{dataset}.calls.bam"
+    params:
+        ref = ref_fasta,
+    shell:
+        """
+        mkdir -p sample_vcfs
+        module load GATK/4.1.2.0
+        gatk SelectVariants -R {params.ref} -I {input} -O {output.gvcf} --ploidy 1 --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"""
