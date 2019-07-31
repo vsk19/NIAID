@@ -1,0 +1,13 @@
+{
+      "__default__": {
+              "mem": "16g",
+              "time": "24:00:00",
+              "partition": "norm",
+              "threads": "12"
+      },
+      "generate_ccs_reads": {
+              "mem": "48",
+              "threads": "32",
+              "time": "3-00:00:00",
+      }
+}

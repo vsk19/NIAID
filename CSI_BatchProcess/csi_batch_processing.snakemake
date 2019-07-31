@@ -85,7 +85,6 @@ rule admixture:
     input: 
         vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
     output: 
-#        admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
         filtvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "filtered.recode.vcf")),
         mergedvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "merged.knowns.vcf")),
         admixtable = join(dir_renamed, "BATCH_QC", "admixture", "admixture_table.tsv"),
