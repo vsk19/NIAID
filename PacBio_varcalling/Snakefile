@@ -6,104 +6,103 @@
 ################################
 ################################
 
-DATA_SAMPLES = ["lbc65", "lbc66", "lbc67","lbc68"]
+DATA_SAMPLES = ["bc1016", "bc1070"]
+data_path="/data/NCBR/rawdata/NCBR-56/"
 ref_fasta = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.dna.toplevel.fa"
 gff_file = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.44.sorted.gff3.gz"
 
 
 rule all:
     input:
-        expand("raw_subreads/{dataset}.raw.fastq", dataset=DATA_SAMPLES),
-        expand("nanoplot_raw/{dataset}/HistogramReadlength_{dataset}.pdf",dataset=DATA_SAMPLES),
-        expand("nanoplot_raw/{dataset}/HistogramReadlength_mqc_{dataset}.png",dataset=DATA_SAMPLES),
-        expand("raw_subreads/{dataset}.raw.fastqc.html",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.ccs.report.txt",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.ccs.bam",dataset=DATA_SAMPLES),
-        expand("ccs_reads/{dataset}.ccs.fastq",dataset=DATA_SAMPLES),
-        expand("nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_dot.pdf",dataset=DATA_SAMPLES),
-        expand("nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_mqc.png",dataset=DATA_SAMPLES),
-        expand("ccs_fastqc/{dataset}.ccs_fastqc.html",dataset=DATA_SAMPLES),
-        expand("{dataset}.realign.bam",dataset=DATA_SAMPLES),
-        expand("qualimap/{dataset}/qualimapReport.html",dataset=DATA_SAMPLES),
-        expand("{dataset}.flagstat",dataset=DATA_SAMPLES),
-        expand("{dataset}.picardMetrics",dataset=DATA_SAMPLES),
-        expand("{dataset}.stats.txt",dataset=DATA_SAMPLES),
-        expand("{dataset}.gvcf",dataset=DATA_SAMPLES),
-        expand("{dataset}.calls.bam",dataset=DATA_SAMPLES)
+        expand("raw_subreads/{samples}.raw.fastq", samples=DATA_SAMPLES),
+        expand("nanoplot_raw/{samples}/HistogramReadlength_{samples}.pdf",samples=DATA_SAMPLES),
+        expand("nanoplot_raw/{samples}/HistogramReadlength_mqc_{samples}.png",samples=DATA_SAMPLES),
+        expand("raw_subreads/{samples}.raw.fastqc.html",samples=DATA_SAMPLES),
+        expand("ccs_reads/{samples}.ccs.report.txt",samples=DATA_SAMPLES),
+        expand("ccs_reads/{samples}.ccs.bam",samples=DATA_SAMPLES),
+        expand("ccs_reads/{samples}.ccs.fastq",samples=DATA_SAMPLES),
+        expand("nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_dot.pdf",samples=DATA_SAMPLES),
+        expand("nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_mqc.png",samples=DATA_SAMPLES),
+        expand("ccs_fastqc/{samples}.ccs_fastqc.html",samples=DATA_SAMPLES),
+        expand("{samples}.realign.bam",samples=DATA_SAMPLES),
+        expand("qualimap/{samples}/qualimapReport.html",samples=DATA_SAMPLES),
+        expand("{samples}.flagstat",samples=DATA_SAMPLES),
+        expand("{samples}.picardMetrics",samples=DATA_SAMPLES),
+        expand("{samples}.stats.txt",samples=DATA_SAMPLES),
+        expand("{samples}.gvcf",samples=DATA_SAMPLES),
+        expand("{samples}.calls.bam",samples=DATA_SAMPLES),
+        expand("sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
+        expand("joint_vcfs/sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
+    params: rname="final"
 
 
-#rule 1
 rule gener_raw_subreads:
     input:
-        "/data/NCBR/rawdata/NCBR-77/raw_reads/{dataset}.bam"
+        data_path+"raw_reads/{samples}.bam"
     output:
-        "raw_subreads/{dataset}.raw.fastq"
+        "raw_subreads/{samples}.raw.fastq",
+    params: rname="subreads"
     shell:
         """mkdir -p raw_subreads
         module load samtools
         samtools fastq {input} > {output}"""
 
-#rule 2
 rule nano_raw_subreads_1:
     input:
-        "raw_subreads/{dataset}.raw.fastq"
+        "raw_subreads/{samples}.raw.fastq"
     output:
-        "nanoplot_raw/{dataset}/HistogramReadlength_{dataset}.pdf"
+        "nanoplot_raw/{samples}/HistogramReadlength_{samples}.pdf"
     params:
-        directory = DATA_SAMPLES,
+        sample="{samples}",rname="nanoRaw"
     shell:
         """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
         conda activate base
         mkdir -p nanoplot_raw
-        mkdir -p nanoplot_raw/{params.directory}
-        NanoPlot -t 12 -o nanoplot_raw/{params.directory} --prefix {params.directory} --maxlength 21000 --minlength 10 -f pdf --fastq {input}"""
+        mkdir -p nanoplot_raw/{params.sample}
+        NanoPlot -t 12 -o nanoplot_raw/{params.sample} --prefix {params.sample} --maxlength 21000 --minlength 10 -f pdf --fastq {input}"""
 
-#rule 3
 rule nano_raw_subreads_2:
     input:
-        "nanoplot_raw/{dataset}/HistogramReadlength_{dataset}.pdf"
+        "nanoplot_raw/{samples}/HistogramReadlength_{samples}.pdf"
     output:
-        "nanoplot_raw/{dataset}/HistogramReadlength_mqc_{dataset}.png"
+        "nanoplot_raw/{samples}/HistogramReadlength_mqc_{samples}.png"
     params:
-        directory = DATA_SAMPLES,
+        sample="{samples}",rname="nanoPlot"
     shell:
         """module load R
         Rscript /data/NCBR/apps/pdf2png.R {input} {output}"""
 
 ##fastqc on raw subreads
-#rule 4
 rule fastqc_raw_subreads:
     input:
-        "raw_subreads/{dataset}.raw.fastq"
+        "raw_subreads/{samples}.raw.fastq"
     output:
-        "raw_subreads/{dataset}.raw.fastqc.html"
+        "raw_subreads/{samples}.raw.fastqc.html"
+    params: rname="fastqcRaw"
     shell:
         """module load fastqc
         mkdir -p raw_fastqc
         fastqc -o raw_fastqc -f fastq --threads 12 --extract {input}"""
 
-##HERE'S THE FORK!!! generate CCS reads if there aren't any in the rawdata/ccs_reads directory
-#rule 5
 rule generate_ccs_reads:
     input:
-        "/data/NCBR/rawdata/NCBR-77/raw_reads/{dataset}.bam"
-        #"/data/NCBR/rawdata/NCBR-77/raw_read_bams/{dataset}.bam"
+        data_path+"raw_reads/{samples}.bam"
     output:
-        report="ccs_reads/{dataset}.ccs.report.txt",
-        bam="ccs_reads/{dataset}.ccs.bam"
+        report="ccs_reads/{samples}.ccs.report.txt",
+        bam="ccs_reads/{samples}.ccs.bam"
+    params: rname="makeCCS"
     shell:
         """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
         conda activate base
         mkdir -p ccs_reads
         ccs --minPredictedAccuracy 0.99 -j 32 --reportFile {output.report} {input} {output.bam}"""
 
-#rule 6
-#IN FORK...extract fastq files
 rule fastq_ccs_reads:
     input:
-        "ccs_reads/{dataset}.ccs.bam"
+        "ccs_reads/{samples}.ccs.bam"
     output:
-        "ccs_reads/{dataset}.ccs.fastq"
+        "ccs_reads/{samples}.ccs.fastq"
+    params: rname="fastqcCCS"
     shell:
         """module load samtools
         mkdir -p ccs_reads
@@ -113,27 +112,27 @@ rule fastq_ccs_reads:
 ##rule 7
 rule nano_ccs_reads_1:
     input:
-        "ccs_reads/{dataset}.ccs.fastq"
+        "ccs_reads/{samples}.ccs.fastq"
     output:
-        "nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_dot.pdf"
+        "nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_dot.pdf"
     params:
-        directory = DATA_SAMPLES,
+        sample="{samples}",rname="nanoCCS"
     shell:
         """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
         conda activate base
         mkdir -p nanoplot_ccs
-        mkdir -p nanoplot_ccs/{params.directory}
-        NanoPlot -t 12 -o nanoplot_ccs/{params.directory} --prefix {params.directory} --maxlength 21000 --minlength 10 -f pdf --fastq {input}
+        mkdir -p nanoplot_ccs/{params.sample}
+        NanoPlot -t 12 -o nanoplot_ccs/{params.sample} --prefix {params.sample} --maxlength 21000 --minlength 10 -f pdf --fastq {input}
         """
 
 #rule 8
 rule nano_ccs_reads_2:
     input:
-        "nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_dot.pdf"
+        "nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_dot.pdf"
     output:
-        "nanoplot_ccs/{dataset}/{dataset}LengthvsQualityScatterPlot_mqc.png"
+        "nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_mqc.png"
     params:
-        directory = DATA_SAMPLES,
+        sample="{samples}",rname="nanoPlot"
     shell:
         """module load R
         Rscript /data/NCBR/apps/pdf2png.R {input} {output}"""
@@ -143,9 +142,10 @@ rule nano_ccs_reads_2:
 #rule 9
 rule fastqc_ccs_reads:
     input:
-        "ccs_reads/{dataset}.ccs.fastq"
+        "ccs_reads/{samples}.ccs.fastq"
     output:
-        "ccs_fastqc/{dataset}.ccs_fastqc.html"
+        "ccs_fastqc/{samples}.ccs_fastqc.html"
+    params: rname="fastqcCCS"
     shell:
         """module load fastqc
         mkdir -p ccs_fastqc
@@ -157,56 +157,55 @@ rule fastqc_ccs_reads:
 #rule 10
 rule ccs_read_ref_align:
     input:
-        "ccs_reads/{dataset}.ccs.fastq"
+        "ccs_reads/{samples}.ccs.fastq"
     output:
-        "{dataset}.sort.bam"
+        "{samples}.sort.bam"
     params:
-        ref = ref_fasta,
+        ref = ref_fasta,rname="pbmm2"
     shell:
         """source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/etc/profile.d/conda.sh
         conda activate base
-        pbmm2 align {params.directory} {input} {output} --preset CCS --sort -j 12"""
-#--sort already generating a bam.bai
+        pbmm2 align {params.ref} {input} {output} --preset CCS --sort -j 12"""
 
 # ##Add read groups to alignment BAM file
 # #rule 11
 rule ccs_readgroup_to_align_bam_1:
     input:
-        "{dataset}.sort.bam"
+        "{samples}.sort.bam"
     output:
-        bai="{dataset}.sort.bam.bai",
-        rehead_bam="{dataset}.sort.rehead.bam"
+        bai="{samples}.sort.bam.bai",
+        rehead_bam="{samples}.sort.rehead.bam"
     params:
-        directory =  DATA_SAMPLES,
+        sample="{samples}",rname="addReadGroup"
     shell:
         """module load samtools
         samtools index {input}
         module load picard
-        java -Xmx24g -jar $PICARDJARPATH/picard.jar AddOrReplaceReadGroups I={input} O={output.rehead_bam} Validation_Stringency=LENIENT RGID=1 RGLB={params.directory} RGPL=Sequel RGPU=AAAAAA RGSM={params.directory}
+        java -Xmx24g -jar $PICARDJARPATH/picard.jar AddOrReplaceReadGroups I={input} O={output.rehead_bam} Validation_Stringency=LENIENT RGID=1 RGLB={params.sample} RGPL=Sequel RGPU=AAAAAA RGSM={params.sample}
 #         """
 #
 #
 # #rule 12
 rule ccs_readgroup_to_align_bam_2:
     input:
-        "{dataset}.sort.rehead.bam"
+        "{samples}.sort.rehead.bam"
     output:
-        "{dataset}.sort.rehead.bam.bai",
+        "{samples}.sort.rehead.bam.bai",
     params:
-        directory =  DATA_SAMPLES,
+        sample="{samples}",rname="indexBAM"
     shell:
         """module load samtools
         samtools index {input}"""
 
 rule realign:
     input:
-        bam="{dataset}.sort.rehead.bam",
-        index="{dataset}.sort.rehead.bam.bai"
+        bam="{samples}.sort.rehead.bam",
+        index="{samples}.sort.rehead.bam.bai"
     output:
-        bam="{dataset}.realign.bam",
-        int="{dataset}.intervals",
+        bam="{samples}.realign.bam",
+        int="{samples}.intervals",
     params:
-        directory =  DATA_SAMPLES,ref = ref_fasta,
+        sample="{samples}",ref = ref_fasta,rname="realign"
     shell:
         """
         module load GATK/3.8-0
@@ -216,12 +215,12 @@ rule realign:
 
 rule bam_recal:
     input:
-        bam="{dataset}.realign.bam",
+        bam="{samples}.realign.bam",
     output:
-        bam="{dataset}.recal.bam",
-        re="{dataset}.recal.txt",
+        bam="{samples}.recal.bam",
+        re="{samples}.recal.txt",
     params:
-        directory =  DATA_SAMPLES,ref = ref_fasta,
+        sample="{samples}",ref = ref_fasta,rname="recal"
     shell:
         """
         module load GATK/4.1.2.0
@@ -236,25 +235,26 @@ rule bam_recal:
 # ###Qualimap QC on BAM file
 rule qualimap_qc_on_bam:
     input:
-        "{dataset}.realign.bam",
+        "{samples}.realign.bam",
     output:
-        "qualimap/{dataset}/qualimapReport.html"
+        "qualimap/{samples}/qualimapReport.html"
     params:
-        directory = DATA_SAMPLES,
+        sample="{samples}",rname="qualimap"
     shell:
         """mkdir -p qualimap
-        mkdir -p qualimap/{params.directory}
+        mkdir -p qualimap/{params.sample}
         module load qualimap/2.2.1
         unset DISPLAY
-        qualimap bamqc --java-mem-size=48G -bam {input} -c -outdir qualimap/{params.directory} -nt 12 -outformat HTML -nw 500 -outfile {output}"""
+        qualimap bamqc --java-mem-size=48G -bam {input} -c -outdir qualimap/{params.sample} -nt 12 -outformat HTML -nw 500 -outfile {output}"""
 #
 #rule 14
 ##samtools flagstats
 rule samtools_flagstats:
     input:
-        "{dataset}.sort.rehead.bam"
+        "{samples}.sort.rehead.bam"
     output:
-        "{dataset}.flagstat"
+        "{samples}.flagstat"
+    params: rname="flagstats"
     shell:
         """module load samtools
         samtools flagstat {input} > {output}"""
@@ -264,9 +264,10 @@ rule samtools_flagstats:
 ##Picard BAM Metrics
 rule picard_bam_metrics:
     input:
-        "{dataset}.sort.rehead.bam"
+        "{samples}.sort.rehead.bam"
     output:
-        "{dataset}.picardMetrics"
+        "{samples}.picardMetrics"
+    params: rname="BAMmetrics"
     shell:
         """java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectMultipleMetrics R=$REF I={input} O={output} PROGRAM=CollectAlignmentSummaryMetrics PROGRAM=QualityScoreDistribution PROGRAM=MeanQualityByCycle PROGRAM=CollectBaseDistributionByCycle PROGRAM=CollectGcBiasMetrics PROGRAM=CollectSequencingArtifactMetrics PROGRAM=CollectQualityYieldMetrics"""
 
@@ -274,38 +275,38 @@ rule picard_bam_metrics:
 ##samtools stats on BAM files
 rule samtools_stats_on_bam_files:
     input:
-        "{dataset}.sort.rehead.bam"
+        "{samples}.sort.rehead.bam"
     output:
-        "{dataset}.stats.txt"
+        "{samples}.stats.txt"
     params:
-        directory = ref_fasta,
+        ref = ref_fasta,rname="BAMstats"
     shell:
         """module load samtools
-        samtools stats --ref-seq {params.directory} {input} > {output}"""
+        samtools stats --ref-seq {params.ref} {input} > {output}"""
 
 
 #rule 17
 ##Generating gVCFs/HaplotypeCaller
 rule gvcf_haplo:
     input:
-        "{dataset}.realign.bam"
+        "{samples}.realign.bam"
     output:
-        gvcf="{dataset}.gvcf",
-        calls_bam="{dataset}.calls.bam"
+        gvcf="{samples}.gvcf",
+        calls_bam="{samples}.calls.bam"
     params:
-        ref = ref_fasta,
+        ref = ref_fasta,rname="haploGVCFs"
     shell:
         """module load GATK/4.1.2.0
         gatk HaplotypeCaller -R {params.ref} -I {input} -O {output.gvcf} --ploidy 1 --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"""
 
-##Generating gVCFs/HaplotypeCaller
+##joint HaplotypeCaller
 rule joint_haplo:
-    input: expand("{dataset}.realign.bam")
+    input: expand("{samples}.realign.bam",samples=DATA_SAMPLES)
     output:
         vcf="joint_vcfs/joint_raw.vcf",
     params:
-        ref = ref_fasta,
-    shell:
+        ref = ref_fasta,rname="haploJoint"
+    run:
         fl=os.popen("ls *.realign.bam").read().split()      
         var=" -I "+" -I ".join(fl)
         cmd="mkdir -p joint_vcfs; module load GATK/4.1.2.0; gatk HaplotypeCaller -R {params.ref} -O {output.vcf} --ploidy 1 --pcr-indel-model AGGRESSIVE --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"+var
@@ -314,12 +315,12 @@ rule joint_haplo:
 
 ##Combining gVCFs
 rule combo_gvcfs:
-    input: expand("{dataset}.gvcf")
+    input: expand("{samples}.gvcf",samples=DATA_SAMPLES)
     output:
         gvcf="merged.gvcf",
     params:
-        ref = ref_fasta,
-    shell:
+        ref = ref_fasta,rname="mergeGVCFs"
+    run:
         fl=os.popen("ls *.gvcf").read().split()
         var=" --variant "+" --variant ".join(fl)
         cmd="module load GATK/4.1.2.0; gatk CombineGVCFs -R {params.ref} -O {output.gvcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"+var
@@ -332,8 +333,8 @@ rule genotyping:
     output:
         vcf="raw_variants.vcf",
     params:
-        ref = ref_fasta,
-    shell:
+        ref = ref_fasta,rname="genoGVCFs"
+    run:
         cmd="module load GATK/4.1.2.0; gatk GenotypeGVCFs -R {params.ref} -O {output.vcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"
         print(cmd)
         shell(cmd)
@@ -352,10 +353,8 @@ rule filter:
         filtered="filtered.vcf",
         bcftools="filtered.bcftools",
         vep="filtered.vep",
-#        snpeffcsv=""filtered.snpeff.csv"
-#        snpeffstats=""filtered.snpeff.html"
     params:
-        ref = ref_fasta,gff=gff_file
+        ref = ref_fasta,gff=gff_file,rname="filterVCF"
     shell:
         """
         module load GATK/4.1.2.0
@@ -371,7 +370,6 @@ rule filter:
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         module load VEP
         vep -sf filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
-#        java -jar /data/lackjb/snpEff/snpEff.jar -canon -csvStats {output.snpeffcsv} -stats {output.snpeffstats} -o bedAnn {params.species} joint_variants.filtered.vcf > joint_variants.filtered.annotations.bed
         """
 
 ##Filter joint VCFs
@@ -389,7 +387,7 @@ rule filter_joint:
         bcftools="joint_vcfs/filtered.bcftools",
         vep="joint_vcfs/filtered.vep",
     params:
-        ref = ref_fasta,gff=gff_file
+        ref = ref_fasta,gff=gff_file,rname="filterJointVCF"
     shell:
         """
         module load GATK/4.1.2.0
@@ -405,7 +403,6 @@ rule filter_joint:
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         module load VEP
         vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
-#        java -jar /data/lackjb/snpEff/snpEff.jar -canon -csvStats {output.snpeffcsv} -stats {output.snpeffstats} -o bedAnn {params.species} joint_variants.filtered.vcf > joint_variants.filtered.annotations.bed
         """
 
 ##Extract sample variants
@@ -413,17 +410,37 @@ rule extract_sample_variants:
     input:
         "filtered.vcf",
     output:
-        vcf="sample_vcfs/{dataset}.vcf",
-        bcftools="sample_vcfs/{dataset}.bcftools",
-        vep="sample_vcfs/{dataset}.vep",
+        vcf="sample_vcfs/{samples}.vcf",
+        bcftools="sample_vcfs/{samples}.bcftools",
+        vep="sample_vcfs/{samples}.vep",
     params:
-        ref = ref_fasta,sample={dataset},gff=gff_file
+        ref = ref_fasta,sample="{samples}",gff=gff_file,rname="extractVar"
     shell:
         """
         mkdir -p sample_vcfs
         module load GATK/4.1.2.0
-        gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.dataset} --exclude-non-variants
+        gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.sample} --exclude-non-variants
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
         module load VEP
         vep -sf sample_vcfs/{params.sample}.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
+
+##Extract sample variants
+rule extract_joint_sample_variants:
+    input:
+        "joint_vcfs/filtered.vcf",
+    output:
+        vcf="joint_vcfs/sample_vcfs/{samples}.vcf",
+        bcftools="joint_vcfs/sample_vcfs/{samples}.bcftools",
+        vep="joint_vcfs/sample_vcfs/{samples}.vep",
+    params:
+        ref = ref_fasta,sample="{samples}",gff=gff_file,rname="extractVar"
+    shell:
+        """
+        mkdir -p joint_vcfs/sample_vcfs
+        module load GATK/4.1.2.0
+        gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.sample} --exclude-non-variants
+        module load samtools
+        bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
+        module load VEP
+        vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
