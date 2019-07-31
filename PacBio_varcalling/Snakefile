@@ -369,7 +369,7 @@ rule filter:
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         module load VEP
-        vep -sf joint_variants.filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick
+        vep -sf filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick
 #        java -jar /data/lackjb/snpEff/snpEff.jar -canon -csvStats {output.snpeffcsv} -stats {output.snpeffstats} -o bedAnn {params.species} joint_variants.filtered.vcf > joint_variants.filtered.annotations.bed
         """
 
@@ -385,6 +385,8 @@ rule filter_joint:
         flagindels="joint_vcfs/indels.flagged.vcf",
         flagmerged="joint_vcfs/merged.flagged.vcf",
         filtered="joint_vcfs/filtered.vcf",
+        bcftools="joint_vcfs/filtered.bcftools",
+        vep="joint_vcfs/filtered.vep",
     params:
         ref = ref_fasta,
     shell:
@@ -398,19 +400,27 @@ rule filter_joint:
         gatk VariantFiltration -R {params.ref} --variant {output.indels} --filter-expression "AS_QD < 2.0" --filter-name "my_indel_filter" -O {output.flagindels}
         gatk MergeVcfs -I={output.flagsnps} -I={output.flagshort} -I={output.flagindels} -O={output.flagmerged}
         gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
+        module load samtools
+        bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
+        module load VEP
+        vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick
+#        java -jar /data/lackjb/snpEff/snpEff.jar -canon -csvStats {output.snpeffcsv} -stats {output.snpeffstats} -o bedAnn {params.species} joint_variants.filtered.vcf > joint_variants.filtered.annotations.bed
         """
 
-##Generating gVCFs/HaplotypeCaller
+##Extract sample variants
 rule extract_sample_variants:
     input:
-        "{dataset}.realign.bam"
+        "joint_vcfs/filtered.vcf",
     output:
-        gvcf="{dataset}.gvcf",
-        calls_bam="{dataset}.calls.bam"
+        vcf="sample_vcfs/{dataset}.vcf",
     params:
         ref = ref_fasta,
     shell:
         """
         mkdir -p sample_vcfs
         module load GATK/4.1.2.0
-        gatk SelectVariants -R {params.ref} -I {input} -O {output.gvcf} --ploidy 1 --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"""
+        gatk SelectVariants -R {params.ref} -variant {input} -O {output.gvcf} --ploidy 1 --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation
+        module load samtools
+        bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
+        module load VEP
+        vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick"""
