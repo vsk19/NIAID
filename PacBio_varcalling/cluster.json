@@ -1,0 +1,17 @@
+{
+      "__default__": {
+              "mem": "16g",
+              "time": "0-10:00:00",
+              "partition": "norm",
+              "threads": "8"
+      },
+      "gener_gvcfs_haplocaller": {
+              "mem": "24",
+              "threads": "16"
+      },
+      "generate_ccs_reads": {
+              "mem": "48",
+              "threads": "16",
+              "time": "2-00:00:00",
+      }
+}

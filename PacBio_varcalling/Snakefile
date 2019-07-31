@@ -7,7 +7,8 @@
 ################################
 
 DATA_SAMPLES = ["lbc65", "lbc66", "lbc67","lbc68"]
-ref_fasta = "/data/NCBR/rawdata/NCBR-56/ccs_bams/pf3d7.norm.fasta"
+ref_fasta = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.dna.toplevel.fa"
+gff_file = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.44.sorted.gff3.gz"
 
 
 rule all:
@@ -354,7 +355,7 @@ rule filter:
 #        snpeffcsv=""filtered.snpeff.csv"
 #        snpeffstats=""filtered.snpeff.html"
     params:
-        ref = ref_fasta,gff="/data/NCBR/projects/NCBR-77/PlasmoDB-44_PfalciparumDd2.sorted.gff.gz"
+        ref = ref_fasta,gff=gff_file
     shell:
         """
         module load GATK/4.1.2.0
@@ -369,7 +370,7 @@ rule filter:
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         module load VEP
-        vep -sf filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick
+        vep -sf filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
 #        java -jar /data/lackjb/snpEff/snpEff.jar -canon -csvStats {output.snpeffcsv} -stats {output.snpeffstats} -o bedAnn {params.species} joint_variants.filtered.vcf > joint_variants.filtered.annotations.bed
         """
 
@@ -388,7 +389,7 @@ rule filter_joint:
         bcftools="joint_vcfs/filtered.bcftools",
         vep="joint_vcfs/filtered.vep",
     params:
-        ref = ref_fasta,
+        ref = ref_fasta,gff=gff_file
     shell:
         """
         module load GATK/4.1.2.0
@@ -403,24 +404,26 @@ rule filter_joint:
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         module load VEP
-        vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick
+        vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
 #        java -jar /data/lackjb/snpEff/snpEff.jar -canon -csvStats {output.snpeffcsv} -stats {output.snpeffstats} -o bedAnn {params.species} joint_variants.filtered.vcf > joint_variants.filtered.annotations.bed
         """
 
 ##Extract sample variants
 rule extract_sample_variants:
     input:
-        "joint_vcfs/filtered.vcf",
+        "filtered.vcf",
     output:
         vcf="sample_vcfs/{dataset}.vcf",
+        bcftools="sample_vcfs/{dataset}.bcftools",
+        vep="sample_vcfs/{dataset}.vep",
     params:
-        ref = ref_fasta,
+        ref = ref_fasta,sample={dataset},gff=gff_file
     shell:
         """
         mkdir -p sample_vcfs
         module load GATK/4.1.2.0
-        gatk SelectVariants -R {params.ref} -variant {input} -O {output.gvcf} --ploidy 1 --pcr-indel-model AGGRESSIVE -bamout {output.calls_bam} -ERC GVCF --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation
+        gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.dataset} --exclude-non-variants
         module load samtools
-        bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
+        bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
         module load VEP
-        vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.filteredvep} --pick"""
+        vep -sf sample_vcfs/{params.sample}.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
