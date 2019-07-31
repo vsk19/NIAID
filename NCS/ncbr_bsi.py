@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Aug  6 11:07:30 2018
-
 ncbr_huse.py
     Set of functions supporting the FNL NCBR work
     
@@ -63,7 +62,11 @@ def send_curl(curl_string):
 def get_bsi_session(url, user, pw):
     curl_string = "curl -s -X POST --header 'Content-Type: application/x-www-form-urlencoded' --header 'Accept: text/plain' -d 'user_name=" + user + "&password=" + pw + "' 'https://rest.bsisystems.com/api/rest/EBMS/common/logon'"
     sessionID = send_curl(curl_string)
-    #print("Session ID: {}".format(sessionID))
+#    print("Session ID: {}".format(sessionID))
+#    print(sessionID.decode("utf-8"))
+    
+    if sessionID.decode("utf-8").find("Logon failed: The username, password, and database combination is incorrect") != -1:
+            err_out("\n*** Error: login information is incorrect. ***\nQuitting.")
 
     #curl_string = "curl -s -X POST --header 'Content-Type: application/x-www-form-urlencoded' --header 'Accept: text/plain' -d 'user_name=" + user "' 'https://rest.bsisystems.com/api/rest/EBMS/common/logon' --digest"
     #sessionID = send_curl(curl_string)
@@ -149,9 +152,7 @@ def bsi_query(curl, url, session, fields, theIDs, search_field, isequal=True, is
 
     if 'message' in data:
         if re.search("Error running report:", data['message']):
-            err_out("\n*** BSI query failed to return valid results***\nQuitting.")
-        if re.search("Logon failed:", data['message']):
-            err_out("\n***BSI Login failed***\nQuitting.")
+            err_out("\n*** BSI query failed to return valid results ***\nQuitting.")
 
     if len(data) == 0:
         err_out("BSI query failed to return valid results")
@@ -183,4 +184,3 @@ def bsi_query(curl, url, session, fields, theIDs, search_field, isequal=True, is
     df.rename(columns=colnameDict, inplace=True)
 
     return(df)
-
