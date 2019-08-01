@@ -15,14 +15,12 @@ gff_file = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum
 rule all:
     input:
         expand("raw_subreads/{samples}.raw.fastq", samples=DATA_SAMPLES),
-        expand("nanoplot_raw/{samples}/HistogramReadlength_{samples}.pdf",samples=DATA_SAMPLES),
-        expand("nanoplot_raw/{samples}/HistogramReadlength_mqc_{samples}.png",samples=DATA_SAMPLES),
-        expand("raw_subreads/{samples}.raw.fastqc.html",samples=DATA_SAMPLES),
+        expand("nanoplot_raw/{samples}/{samples}_HistogramReadlength_mqc.png",samples=DATA_SAMPLES),
+        expand("raw_fastqc/{samples}.raw_fastqc.html",samples=DATA_SAMPLES),
         expand("ccs_reads/{samples}.ccs.report.txt",samples=DATA_SAMPLES),
         expand("ccs_reads/{samples}.ccs.bam",samples=DATA_SAMPLES),
         expand("ccs_reads/{samples}.ccs.fastq",samples=DATA_SAMPLES),
-        expand("nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_dot.pdf",samples=DATA_SAMPLES),
-        expand("nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_mqc.png",samples=DATA_SAMPLES),
+        expand("nanoplot_ccs/{samples}/{samples}_LengthvsQualityScatterPlot_mqc.png",samples=DATA_SAMPLES),
         expand("ccs_fastqc/{samples}.ccs_fastqc.html",samples=DATA_SAMPLES),
         expand("{samples}.realign.bam",samples=DATA_SAMPLES),
         expand("qualimap/{samples}/qualimapReport.html",samples=DATA_SAMPLES),
@@ -51,7 +49,7 @@ rule nano_raw_subreads_1:
     input:
         "raw_subreads/{samples}.raw.fastq"
     output:
-        "nanoplot_raw/{samples}/HistogramReadlength_{samples}.pdf"
+        "nanoplot_raw/{samples}/{samples}"+"HistogramReadlength.pdf"
     params:
         sample="{samples}",rname="nanoRaw"
     shell:
@@ -63,9 +61,9 @@ rule nano_raw_subreads_1:
 
 rule nano_raw_subreads_2:
     input:
-        "nanoplot_raw/{samples}/HistogramReadlength_{samples}.pdf"
+        "nanoplot_raw/{samples}/{samples}"+"HistogramReadlength.pdf"
     output:
-        "nanoplot_raw/{samples}/HistogramReadlength_mqc_{samples}.png"
+        "nanoplot_raw/{samples}/{samples}_HistogramReadlength_mqc.png"
     params:
         sample="{samples}",rname="nanoPlot"
     shell:
@@ -77,7 +75,7 @@ rule fastqc_raw_subreads:
     input:
         "raw_subreads/{samples}.raw.fastq"
     output:
-        "raw_subreads/{samples}.raw.fastqc.html"
+        "raw_fastqc/{samples}.raw_fastqc.html"
     params: rname="fastqcRaw"
     shell:
         """module load fastqc
@@ -130,7 +128,7 @@ rule nano_ccs_reads_2:
     input:
         "nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_dot.pdf"
     output:
-        "nanoplot_ccs/{samples}/{samples}LengthvsQualityScatterPlot_mqc.png"
+        "nanoplot_ccs/{samples}/{samples}_LengthvsQualityScatterPlot_mqc.png"
     params:
         sample="{samples}",rname="nanoPlot"
     shell:

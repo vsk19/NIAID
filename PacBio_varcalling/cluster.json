@@ -6,7 +6,7 @@
               "threads": "12"
       },
       "generate_ccs_reads": {
-              "mem": "48",
+              "mem": "48g",
               "threads": "32",
               "time": "3-00:00:00",
       }
