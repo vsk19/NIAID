@@ -25,7 +25,7 @@ rule all:
         expand("{samples}.realign.bam",samples=DATA_SAMPLES),
         expand("qualimap/{samples}/qualimapReport.html",samples=DATA_SAMPLES),
         expand("{samples}.flagstat",samples=DATA_SAMPLES),
-        expand("{samples}.picardMetrics",samples=DATA_SAMPLES),
+        expand("{samples}.picardMetrics.quality_distribution.pdf",samples=DATA_SAMPLES),
         expand("{samples}.stats.txt",samples=DATA_SAMPLES),
         expand("{samples}.gvcf",samples=DATA_SAMPLES),
         expand("{samples}.calls.bam",samples=DATA_SAMPLES),
@@ -207,8 +207,8 @@ rule realign:
     shell:
         """
         module load GATK/3.8-0
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
+        java -Xmx48g -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
+        java -Xmx48g -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
         """
 
 rule bam_recal:
@@ -264,10 +264,11 @@ rule picard_bam_metrics:
     input:
         "{samples}.sort.rehead.bam"
     output:
-        "{samples}.picardMetrics"
-    params: rname="BAMmetrics"
+        "{samples}.picardMetrics.quality_distribution.pdf"
+    params: ref = ref_fasta,sample="{samples}",rname="BAMmetrics"
     shell:
-        """java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectMultipleMetrics R=$REF I={input} O={output} PROGRAM=CollectAlignmentSummaryMetrics PROGRAM=QualityScoreDistribution PROGRAM=MeanQualityByCycle PROGRAM=CollectBaseDistributionByCycle PROGRAM=CollectGcBiasMetrics PROGRAM=CollectSequencingArtifactMetrics PROGRAM=CollectQualityYieldMetrics"""
+        """module load picard
+        java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectMultipleMetrics R={params.ref} I={input} O={params.sample}.picardMetrics PROGRAM=CollectAlignmentSummaryMetrics PROGRAM=QualityScoreDistribution PROGRAM=MeanQualityByCycle PROGRAM=CollectBaseDistributionByCycle PROGRAM=CollectGcBiasMetrics PROGRAM=CollectSequencingArtifactMetrics PROGRAM=CollectQualityYieldMetrics"""
 
 #rule 16
 ##samtools stats on BAM files
@@ -307,7 +308,7 @@ rule joint_haplo:
     run:
         fl=os.popen("ls *.realign.bam").read().split()      
         var=" -I "+" -I ".join(fl)
-        cmd="mkdir -p joint_vcfs; module load GATK/4.1.2.0; gatk HaplotypeCaller -R {params.ref} -O {output.vcf} --ploidy 1 --pcr-indel-model AGGRESSIVE --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"+var
+        cmd="mkdir -p joint_vcfs; module load GATK/4.1.2.0; gatk HaplotypeCaller -R {params.ref} -O {output.vcf} --ploidy 1 --pcr-indel-model AGGRESSIVE --minimum-mapping-quality 60 --annotation-group StandardAnnotation"+var
         print(cmd)
         shell(cmd)
 
@@ -392,9 +393,9 @@ rule filter_joint:
         gatk SelectVariants -R {params.ref} --variant {input.vcf} -O {output.snps} --select-type-to-include SNP --exclude-filtered
         gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.shortindels} --max-indel-size 1 --min-indel-size 1
         gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.indels} --min-indel-size 2
-        gatk VariantFiltration -R {params.ref} --variant {output.snps} --filter-expression "AS_QD < 2.0" --filter-name "my_snp_filter" -O {output.flagsnps}
-        gatk VariantFiltration -R {params.ref} --variant {output.shortindels} --filter-expression "AS_QD < 5.0" --filter-name "my_shortindel_filter" -O {output.flagshort}
-        gatk VariantFiltration -R {params.ref} --variant {output.indels} --filter-expression "AS_QD < 2.0" --filter-name "my_indel_filter" -O {output.flagindels}
+        gatk VariantFiltration -R {params.ref} --variant {output.snps} --filter-expression "QD < 2.0" --filter-name "my_snp_filter" -O {output.flagsnps}
+        gatk VariantFiltration -R {params.ref} --variant {output.shortindels} --filter-expression "QD < 5.0" --filter-name "my_shortindel_filter" -O {output.flagshort}
+        gatk VariantFiltration -R {params.ref} --variant {output.indels} --filter-expression "QD < 2.0" --filter-name "my_indel_filter" -O {output.flagindels}
         gatk MergeVcfs -I={output.flagsnps} -I={output.flagshort} -I={output.flagindels} -O={output.flagmerged}
         gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
         module load samtools
