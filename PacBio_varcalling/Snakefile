@@ -30,8 +30,10 @@ rule all:
         expand("{samples}.gvcf",samples=DATA_SAMPLES),
         expand("{samples}.calls.bam",samples=DATA_SAMPLES),
         expand("sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
-        expand("joint_vcfs/sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
+        expand("joint_vcfs/sample_vcfs/{samples}.joint.vcf",samples=DATA_SAMPLES),
     params: rname="final"
+    output: "multiqc_report.html"
+    shell: """module load multiqc/1.7; multiqc ."""
 
 
 rule gener_raw_subreads:
@@ -207,8 +209,8 @@ rule realign:
     shell:
         """
         module load GATK/3.8-0
-        java -Xmx48g -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
-        java -Xmx48g -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
+        java -Xmx48g -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int} -allowPotentiallyMisencodedQuals
+        java -Xmx48g -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam} -allowPotentiallyMisencodedQuals
         """
 
 rule bam_recal:
@@ -334,7 +336,7 @@ rule genotyping:
     params:
         ref = ref_fasta,rname="genoGVCFs"
     run:
-        cmd="module load GATK/4.1.2.0; gatk GenotypeGVCFs -R {params.ref} -O {output.vcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"
+        cmd="module load GATK/4.1.2.0; gatk GenotypeGVCFs -R {params.ref} -V {input.gvcf} -O {output.vcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"
         print(cmd)
         shell(cmd)
 
@@ -350,6 +352,7 @@ rule filter:
         flagindels="indels.flagged.vcf",
         flagmerged="merged.flagged.vcf",
         filtered="filtered.vcf",
+        bcftoolsraw="raw.bcftools",
         bcftools="filtered.bcftools",
         vep="filtered.vep",
     params:
@@ -367,8 +370,9 @@ rule filter:
         gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
+        bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
         module load VEP
-        vep -sf filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
+        vep -sf filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
         """
 
 ##Filter joint VCFs
@@ -382,9 +386,10 @@ rule filter_joint:
         flagshort="joint_vcfs/1bpindels.flagged.vcf",
         flagindels="joint_vcfs/indels.flagged.vcf",
         flagmerged="joint_vcfs/merged.flagged.vcf",
-        filtered="joint_vcfs/filtered.vcf",
-        bcftools="joint_vcfs/filtered.bcftools",
-        vep="joint_vcfs/filtered.vep",
+        filtered="joint_vcfs/joint_filtered.vcf",
+        bcftoolsraw="joint_vcfs/joint_raw.bcftools",
+        bcftools="joint_vcfs/joint_filtered.bcftools",
+        vep="joint_vcfs/joint_filtered.vep",
     params:
         ref = ref_fasta,gff=gff_file,rname="filterJointVCF"
     shell:
@@ -400,8 +405,9 @@ rule filter_joint:
         gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
+        bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
         module load VEP
-        vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
+        vep -sf joint_vcfs/filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
         """
 
 ##Extract sample variants
@@ -422,15 +428,15 @@ rule extract_sample_variants:
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
         module load VEP
-        vep -sf sample_vcfs/{params.sample}.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
+        vep -sf sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
 
 ##Extract sample variants
 rule extract_joint_sample_variants:
     input:
-        "joint_vcfs/filtered.vcf",
+        "joint_vcfs/joint_filtered.vcf",
     output:
-        vcf="joint_vcfs/sample_vcfs/{samples}.vcf",
-        bcftools="joint_vcfs/sample_vcfs/{samples}.bcftools",
+        vcf="joint_vcfs/sample_vcfs/{samples}.joint.vcf",
+        bcftools="joint_vcfs/sample_vcfs/{samples}.joint.bcftools",
         vep="joint_vcfs/sample_vcfs/{samples}.vep",
     params:
         ref = ref_fasta,sample="{samples}",gff=gff_file,rname="extractVar"
@@ -442,4 +448,4 @@ rule extract_joint_sample_variants:
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
         module load VEP
-        vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
+        vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
