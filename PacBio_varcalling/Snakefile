@@ -8,8 +8,11 @@
 
 DATA_SAMPLES = ["bc1016", "bc1070"]
 data_path="/data/NCBR/rawdata/NCBR-56/"
-ref_fasta = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.dna.toplevel.fa"
-gff_file = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.44.sorted.gff3.gz"
+refs_path="/data/NCBR/references/p_falciparium_3D7/merged/"
+ref_fasta = refs_path+"reference.fa"
+gff_file = refs_path+"transcriptome.gff3.gz"
+gene_symbols=refs_path+"geneSymbols.bed.gz"
+gene_descriptions=refs_path+"geneDescriptions.bed.gz"
 
 
 rule all:
@@ -31,6 +34,7 @@ rule all:
         expand("{samples}.calls.bam",samples=DATA_SAMPLES),
         expand("sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
         expand("joint_vcfs/sample_vcfs/{samples}.joint.vcf",samples=DATA_SAMPLES),
+        "joint_vcfs/joint_filtered.table",
     params: rname="final"
     output: "multiqc_report.html"
     shell: """module load multiqc/1.7; multiqc ."""
@@ -356,7 +360,7 @@ rule filter:
         bcftools="filtered.bcftools",
         vep="filtered.vep",
     params:
-        ref = ref_fasta,gff=gff_file,rname="filterVCF"
+        ref = ref_fasta,gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="filterVCF"
     shell:
         """
         module load GATK/4.1.2.0
@@ -372,7 +376,7 @@ rule filter:
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
         module load VEP
-        vep -sf filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
+        vep -sf filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
         """
 
 ##Filter joint VCFs
@@ -391,7 +395,7 @@ rule filter_joint:
         bcftools="joint_vcfs/joint_filtered.bcftools",
         vep="joint_vcfs/joint_filtered.vep",
     params:
-        ref = ref_fasta,gff=gff_file,rname="filterJointVCF"
+        ref = ref_fasta,gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="filterJointVCF"
     shell:
         """
         module load GATK/4.1.2.0
@@ -407,7 +411,7 @@ rule filter_joint:
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
         module load VEP
-        vep -sf joint_vcfs/filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
+        vep -sf joint_vcfs/joint_filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
         """
 
 ##Extract sample variants
@@ -419,7 +423,7 @@ rule extract_sample_variants:
         bcftools="sample_vcfs/{samples}.bcftools",
         vep="sample_vcfs/{samples}.vep",
     params:
-        ref = ref_fasta,sample="{samples}",gff=gff_file,rname="extractVar"
+        ref = ref_fasta,sample="{samples}",gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="extractVar"
     shell:
         """
         mkdir -p sample_vcfs
@@ -428,7 +432,7 @@ rule extract_sample_variants:
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
         module load VEP
-        vep -sf sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
+        vep -sf sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0"""
 
 ##Extract sample variants
 rule extract_joint_sample_variants:
@@ -439,7 +443,7 @@ rule extract_joint_sample_variants:
         bcftools="joint_vcfs/sample_vcfs/{samples}.joint.bcftools",
         vep="joint_vcfs/sample_vcfs/{samples}.vep",
     params:
-        ref = ref_fasta,sample="{samples}",gff=gff_file,rname="extractVar"
+        ref = ref_fasta,sample="{samples}",gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="extractVar"
     shell:
         """
         mkdir -p joint_vcfs/sample_vcfs
@@ -448,4 +452,23 @@ rule extract_joint_sample_variants:
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
         module load VEP
-        vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
+        vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0"""
+
+##Annotation
+rule annotation:
+    input:
+        vcf="joint_vcfs/joint_filtered.vcf",
+        vep="joint_vcfs/joint_filtered.vep",
+    output:
+        genotypes="joint_vcfs/joint_filtered.genotypes",
+        table="joint_vcfs/joint_filtered.table",
+        merged="joint_vcfs/merged_annotated_table.tsv"
+    params:
+        ref = ref_fasta,gff=gff_file,rname="annotate"
+    shell:
+        """
+        module load samtools
+        bcftools query '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {input.vcf} > {output.genotypes}
+        module load GATK/4.1.2.0
+        gatk VariantsToTable -V {input.vcf} -O {output.table} -F EVENTLENGTH -F TRANSITION -F HET -F HOM-REF -F HOM-VAR -F NO-CALL -F TYPE -F VAR -F NSAMPLES -F NCALLED -F MULTI-ALLELIC -GF DP -GF AD -GF GT
+        perl /data/NCBR/apps/make_annotated_table.pl {input.vcf} {output.genotypes} {output.table} {input.vep} {output.merged}"""
