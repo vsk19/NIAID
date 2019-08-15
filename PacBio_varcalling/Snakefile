@@ -35,6 +35,9 @@ rule all:
         expand("sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
         expand("joint_vcfs/sample_vcfs/{samples}.joint.vcf",samples=DATA_SAMPLES),
         "joint_vcfs/joint_filtered.table",
+        "pbsv/raw/joint.sv.vcf",
+        "pbsv/ccs/joint.sv.vcf",
+        "pbsv/raw/joint.sv.annotated.tsv"
     params: rname="final"
     output: "multiqc_report.html"
     shell: """module load multiqc/1.7; multiqc ."""
@@ -468,7 +471,100 @@ rule annotation:
     shell:
         """
         module load samtools
-        bcftools query '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {input.vcf} > {output.genotypes}
+        bcftools query -f '%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n' {input.vcf} > {output.genotypes}
         module load GATK/4.1.2.0
         gatk VariantsToTable -V {input.vcf} -O {output.table} -F EVENTLENGTH -F TRANSITION -F HET -F HOM-REF -F HOM-VAR -F NO-CALL -F TYPE -F VAR -F NSAMPLES -F NCALLED -F MULTI-ALLELIC -GF DP -GF AD -GF GT
         perl /data/NCBR/apps/make_annotated_table.pl {input.vcf} {output.genotypes} {output.table} {input.vep} {output.merged}"""
+
+##pbsv discover from ccs reads
+rule pbsv_ccs_discover:
+    input:
+        "ccs_reads/{samples}.ccs.fastq"
+    output:
+        bam="pbsv/ccs/{samples}.sort.bam",
+        svdisc="pbsv/ccs/{samples}.svsig.gz"
+    params:
+        ref = ref_fasta,sample="{samples}",rname="pbsvCCS1"
+    shell:
+        """mkdir -p pbsv
+        mkdir -p pbsv/ccs
+        set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbmm2 align {params.ref} {input} {output.bam} --preset CCS --sort -j 12 --sample {params.sample}
+        pbsv discover {output.bam} {output.svdisc}
+        """
+
+##pbsv call from ccs reads
+rule pbsv_ccs_call:
+    input: expand("pbsv/ccs/{samples}.svsig.gz",samples=DATA_SAMPLES)
+    output:
+        sv="pbsv/ccs/joint.sv.vcf"
+    params:
+        ref = ref_fasta,rname="pbsvCCS2"
+    shell:
+        """set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbsv call --ccs {params.ref} {input} {output.sv}
+        """
+
+##pbsv discover from raw reads
+rule pbsv_raw_discover:
+    input: data_path+"raw_reads/{samples}.bam"
+    output:
+        bam="pbsv/raw/{samples}.sort.bam",
+        svdisc="pbsv/raw/{samples}.svsig.gz"
+    params:
+        ref = ref_fasta,sample="{samples}",rname="pbsvRAW1"
+    shell:
+        """mkdir -p pbsv
+        mkdir -p pbsv/raw
+        set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbmm2 align {params.ref} {input} {output.bam} --sort -j 12 --sample {params.sample}
+        pbsv discover {output.bam} {output.svdisc}
+        """
+
+##pbsv call from raw reads
+rule pbsv_raw_call:
+    input: expand("pbsv/raw/{samples}.svsig.gz",samples=DATA_SAMPLES)
+    output:
+        sv="pbsv/raw/joint.sv.vcf"
+    params:
+        ref = ref_fasta,rname="pbsvRAW2"
+    shell:
+        """set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbsv call {params.ref} {input} {output.sv}
+        """
+
+##pbsv annotate and make table
+rule pbsv_raw_table:
+    input: vcf="pbsv/raw/joint.sv.vcf"
+    output: genotypes="pbsv/raw/joint.sv.genotypes",
+        table="pbsv/raw/joint.sv.table",
+        vep="pbsv/raw/joint.sv.vep",
+        merged="pbsv/raw/joint.sv.annotated.tsv"
+    params:
+        ref = ref_fasta,gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="svannotate"
+    shell:
+        """
+        module load samtools
+        bcftools query -f '%CHROM\\t%POS\\t%INFO/END\\t%ID\\t%FILTER\\t%INFO/SVTYPE\\t%INFO/SVLEN\\t%REF\\t%ALT[\\t%GT]\\n' {input.vcf} > {output.genotypes}
+        module load GATK/4.1.2.0
+        gatk VariantsToTable -V {input.vcf} -O {output.table} -F EVENTLENGTH -F TRANSITION -F HET -F HOM-REF -F HOM-VAR -F NO-CALL -F TYPE -F VAR -F NSAMPLES -F NCALLED -F MULTI-ALLELIC -GF DP -GF AD -GF GT -raw
+        module load VEP/96
+        vep -sf pbsv/raw/vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
+        perl /data/NCBR/apps/make_annotated_sv_table.pl {input.vcf} {output.genotypes} {output.table} {output.vep} {output.merged}
+        """

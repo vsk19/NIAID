@@ -22,7 +22,7 @@ while (<B>){
  	@line = split;
  	last if ($a>0);
 	if ($line[0] !~ m/##/) {
-	 	print C "$line[0]\t$line[1]\t$line[3]\t$line[4]";	
+	 	print C "$line[0]\tSV_START\tSV_END\t$line[2]\t$line[6]\tSV_TYPE\tSV_LENGTH\t$line[3]\t$line[4]";
 		for ($a = 9; $a < @line; $a++) {
 			print C "\t$line[$a].genotypes";
 			push @samples, $line[$a];
@@ -73,7 +73,6 @@ close F;
 my $b=0;
 my $c=0;
 my $cov=0;
-##need to add minDepth, maxDepth, and AF values to the step below
 
 open E, "<$annotations";
 while (<E>){
@@ -94,14 +93,14 @@ while (<E>){
  		print C "$variants[$c]\t$_\t$info[$b]";
  		my $f=0;
  		for ($f=0; $f<@adindex; $f++) {
- 			my $gtcol=4+$f;
+# 			my $gtcol=9+$f;
 # 			print "$gtcol\n";
  			my $num=$adindex[$f];
  			my @fields=split(' ',$info[$b]);
- 			my @gts=split(' ',$variants[$c]);
+# 			my @gts=split(' ',$variants[$c]);
  			if ($fields[$num] ne 'NA') {
  				my @counts=split(',',$fields[$num]);
- 				my $gt=$gts[$gtcol];
+# 				my $gt=$gts[$gtcol];
  				$cov=0;
  				my $g=0;
  				for ($g=0; $g<@counts; $g++) {
@@ -110,7 +109,7 @@ while (<E>){
  				}
  				my $af='';
  				if ($cov>0) {
-	 				$af=$counts[$gt]/$cov;
+	 				$af=$counts[1]/$cov;
 	 			}
 	 			else {
 	 				$af=0;
