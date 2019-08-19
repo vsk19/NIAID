@@ -124,6 +124,26 @@ def add_family_ids(df):
 
     return(df)
 
+# Adds column with CIDR Exome IDs linking twins and their probands
+def add_twin_ids(df):
+    df['Twin ID'] = 0
+    df.index = range(df.shape[0])
+
+#    fill in IDs
+    for i in range(df.shape[0]):
+        
+        # find where the twins are in the df
+        if df['Relationship'][i] == 'Monozygotic twin sister' or df['Relationship'][i] == 'Monozygotic twin brother':
+            fam_id = df['Phenotips_Family_ID'][i]
+            fam_members = df[df['Phenotips_Family_ID'] == fam_id]
+            proband_ind = fam_members.index[fam_members['Relationship'] == 'Proband self']  #find the proband in the subset of family members
+            
+            df['Twin ID'][i] = fam_members['CIDR_Exome_ID'][proband_ind[0]]  #twin's ID will be proband's Phenotips ID
+            df['Twin ID'][proband_ind] = df['CIDR_Exome_ID'][i]  #proband's ID will be twin's Phenotips ID
+    
+    return df
+
+
 ######################################
 #   
 # Output the dbGaP Dataset (DS) files
@@ -169,8 +189,13 @@ def write_files(df, filenames):
     #Affection (0=unknown; 1=unaffected; 2=affected)
     #Genotypes (space or tab separated, 2 for each marker. 0=missing)
 
-    df.rename(columns={'Gender' : 'SEX'}, inplace=True)
-    pedFields = ['FAMILY_ID', 'SUBJECT_ID', 'MOTHER', 'FATHER', 'SEX']
+    df.rename(columns={'Gender' : 'SEX',
+                       'Adopted' : 'ADOPTED',
+                       'Twin ID' : 'MZ_TWIN_ID'}, inplace=True)
+    pedFields = ['FAMILY_ID', 'SUBJECT_ID', 'MOTHER', 'FATHER', 'SEX', 'ADOPTED', 'MZ_TWIN_ID']
+#    df.ADOPTED.replace('', 'No', inplace = True)
+    df.ADOPTED.replace('', 'No', inplace = True)
+#    df.ADOPTED.replace('Unknown', '0', inplace = True)
 
 
     # Convert gender to 1=Male 2=Female
@@ -330,6 +355,8 @@ def main():
               'Father PhenotipsId', 
               'Mother PhenotipsId', 
               'CIDR Exome ID',
+              'Adopted',
+              'Relationship',
               'Gender', 
               'Proband',
               'Affected Status', 
@@ -342,8 +369,8 @@ def main():
               'Order Date']
 
     dbgapDF = bsi_query(curl_get, url_reports, session, fields, ['BATCH*'], 'Batch Received', False)
+    
 #    print(dbgapDF.shape)
-
     dbgapDF = filter_results(dbgapDF, batch_name)
 #    print(dbgapDF.shape)
     
@@ -352,6 +379,7 @@ def main():
     
     dbgapDF = add_family_ids(dbgapDF)
 #    print(dbgapDF.head())
+    dbgapDF = add_twin_ids(dbgapDF)
 
     ######################################
     #   
