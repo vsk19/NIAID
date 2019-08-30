@@ -8,8 +8,11 @@
 
 DATA_SAMPLES = ["bc1016", "bc1070"]
 data_path="/data/NCBR/rawdata/NCBR-56/"
-ref_fasta = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.dna.toplevel.fa"
-gff_file = "/data/NCBR/references/p_falciparium_3D7ensembl/Plasmodium_falciparum.EPr1.44.sorted.gff3.gz"
+refs_path="/data/NCBR/references/p_falciparium_3D7/merged/"
+ref_fasta = refs_path+"reference.fa"
+gff_file = refs_path+"transcriptome.gff3.gz"
+gene_symbols=refs_path+"geneSymbols.bed.gz"
+gene_descriptions=refs_path+"geneDescriptions.bed.gz"
 
 
 rule all:
@@ -25,13 +28,19 @@ rule all:
         expand("{samples}.realign.bam",samples=DATA_SAMPLES),
         expand("qualimap/{samples}/qualimapReport.html",samples=DATA_SAMPLES),
         expand("{samples}.flagstat",samples=DATA_SAMPLES),
-        expand("{samples}.picardMetrics",samples=DATA_SAMPLES),
+        expand("{samples}.picardMetrics.quality_distribution.pdf",samples=DATA_SAMPLES),
         expand("{samples}.stats.txt",samples=DATA_SAMPLES),
         expand("{samples}.gvcf",samples=DATA_SAMPLES),
         expand("{samples}.calls.bam",samples=DATA_SAMPLES),
         expand("sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
-        expand("joint_vcfs/sample_vcfs/{samples}.vcf",samples=DATA_SAMPLES),
+        expand("joint_vcfs/sample_vcfs/{samples}.joint.vcf",samples=DATA_SAMPLES),
+        "joint_vcfs/joint_filtered.table",
+        "pbsv/raw/joint.sv.vcf",
+        "pbsv/ccs/joint.sv.vcf",
+        "pbsv/raw/joint.sv.annotated.tsv"
     params: rname="final"
+    output: "multiqc_report.html"
+    shell: """module load multiqc/1.7; multiqc ."""
 
 
 rule gener_raw_subreads:
@@ -207,8 +216,8 @@ rule realign:
     shell:
         """
         module load GATK/3.8-0
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int}
-        java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam}
+        java -Xmx48g -jar $GATK_JAR -T RealignerTargetCreator -I {input.bam} -R {params.ref} -o {output.int} -allowPotentiallyMisencodedQuals
+        java -Xmx48g -jar $GATK_JAR -T IndelRealigner -R {params.ref} -I {input.bam} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} -o {output.bam} -allowPotentiallyMisencodedQuals
         """
 
 rule bam_recal:
@@ -264,10 +273,11 @@ rule picard_bam_metrics:
     input:
         "{samples}.sort.rehead.bam"
     output:
-        "{samples}.picardMetrics"
-    params: rname="BAMmetrics"
+        "{samples}.picardMetrics.quality_distribution.pdf"
+    params: ref = ref_fasta,sample="{samples}",rname="BAMmetrics"
     shell:
-        """java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectMultipleMetrics R=$REF I={input} O={output} PROGRAM=CollectAlignmentSummaryMetrics PROGRAM=QualityScoreDistribution PROGRAM=MeanQualityByCycle PROGRAM=CollectBaseDistributionByCycle PROGRAM=CollectGcBiasMetrics PROGRAM=CollectSequencingArtifactMetrics PROGRAM=CollectQualityYieldMetrics"""
+        """module load picard
+        java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectMultipleMetrics R={params.ref} I={input} O={params.sample}.picardMetrics PROGRAM=CollectAlignmentSummaryMetrics PROGRAM=QualityScoreDistribution PROGRAM=MeanQualityByCycle PROGRAM=CollectBaseDistributionByCycle PROGRAM=CollectGcBiasMetrics PROGRAM=CollectSequencingArtifactMetrics PROGRAM=CollectQualityYieldMetrics"""
 
 #rule 16
 ##samtools stats on BAM files
@@ -307,7 +317,7 @@ rule joint_haplo:
     run:
         fl=os.popen("ls *.realign.bam").read().split()      
         var=" -I "+" -I ".join(fl)
-        cmd="mkdir -p joint_vcfs; module load GATK/4.1.2.0; gatk HaplotypeCaller -R {params.ref} -O {output.vcf} --ploidy 1 --pcr-indel-model AGGRESSIVE --minimum-mapping-quality 60 --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"+var
+        cmd="mkdir -p joint_vcfs; module load GATK/4.1.2.0; gatk HaplotypeCaller -R {params.ref} -O {output.vcf} --ploidy 1 --pcr-indel-model AGGRESSIVE --minimum-mapping-quality 60 --annotation-group StandardAnnotation"+var
         print(cmd)
         shell(cmd)
 
@@ -333,7 +343,7 @@ rule genotyping:
     params:
         ref = ref_fasta,rname="genoGVCFs"
     run:
-        cmd="module load GATK/4.1.2.0; gatk GenotypeGVCFs -R {params.ref} -O {output.vcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"
+        cmd="module load GATK/4.1.2.0; gatk GenotypeGVCFs -R {params.ref} -V {input.gvcf} -O {output.vcf} --annotation-group AS_StandardAnnotation --annotation-group StandardAnnotation"
         print(cmd)
         shell(cmd)
 
@@ -349,10 +359,11 @@ rule filter:
         flagindels="indels.flagged.vcf",
         flagmerged="merged.flagged.vcf",
         filtered="filtered.vcf",
+        bcftoolsraw="raw.bcftools",
         bcftools="filtered.bcftools",
         vep="filtered.vep",
     params:
-        ref = ref_fasta,gff=gff_file,rname="filterVCF"
+        ref = ref_fasta,gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="filterVCF"
     shell:
         """
         module load GATK/4.1.2.0
@@ -366,8 +377,9 @@ rule filter:
         gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
-        module load VEP
-        vep -sf filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
+        bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
+        module load VEP/96
+        vep -sf filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
         """
 
 ##Filter joint VCFs
@@ -381,26 +393,28 @@ rule filter_joint:
         flagshort="joint_vcfs/1bpindels.flagged.vcf",
         flagindels="joint_vcfs/indels.flagged.vcf",
         flagmerged="joint_vcfs/merged.flagged.vcf",
-        filtered="joint_vcfs/filtered.vcf",
-        bcftools="joint_vcfs/filtered.bcftools",
-        vep="joint_vcfs/filtered.vep",
+        filtered="joint_vcfs/joint_filtered.vcf",
+        bcftoolsraw="joint_vcfs/joint_raw.bcftools",
+        bcftools="joint_vcfs/joint_filtered.bcftools",
+        vep="joint_vcfs/joint_filtered.vep",
     params:
-        ref = ref_fasta,gff=gff_file,rname="filterJointVCF"
+        ref = ref_fasta,gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="filterJointVCF"
     shell:
         """
         module load GATK/4.1.2.0
         gatk SelectVariants -R {params.ref} --variant {input.vcf} -O {output.snps} --select-type-to-include SNP --exclude-filtered
         gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.shortindels} --max-indel-size 1 --min-indel-size 1
         gatk SelectVariants -R {params.ref} --variant {input.vcf} --select-type-to-include INDEL --exclude-filtered -O {output.indels} --min-indel-size 2
-        gatk VariantFiltration -R {params.ref} --variant {output.snps} --filter-expression "AS_QD < 2.0" --filter-name "my_snp_filter" -O {output.flagsnps}
-        gatk VariantFiltration -R {params.ref} --variant {output.shortindels} --filter-expression "AS_QD < 5.0" --filter-name "my_shortindel_filter" -O {output.flagshort}
-        gatk VariantFiltration -R {params.ref} --variant {output.indels} --filter-expression "AS_QD < 2.0" --filter-name "my_indel_filter" -O {output.flagindels}
+        gatk VariantFiltration -R {params.ref} --variant {output.snps} --filter-expression "QD < 2.0" --filter-name "my_snp_filter" -O {output.flagsnps}
+        gatk VariantFiltration -R {params.ref} --variant {output.shortindels} --filter-expression "QD < 5.0" --filter-name "my_shortindel_filter" -O {output.flagshort}
+        gatk VariantFiltration -R {params.ref} --variant {output.indels} --filter-expression "QD < 2.0" --filter-name "my_indel_filter" -O {output.flagindels}
         gatk MergeVcfs -I={output.flagsnps} -I={output.flagshort} -I={output.flagindels} -O={output.flagmerged}
         gatk SelectVariants -R {params.ref} -V {output.flagmerged} --exclude-filtered -O {output.filtered}
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
-        module load VEP
-        vep -sf joint_vcfs/filtered.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick
+        bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
+        module load VEP/96
+        vep -sf joint_vcfs/joint_filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
         """
 
 ##Extract sample variants
@@ -412,7 +426,7 @@ rule extract_sample_variants:
         bcftools="sample_vcfs/{samples}.bcftools",
         vep="sample_vcfs/{samples}.vep",
     params:
-        ref = ref_fasta,sample="{samples}",gff=gff_file,rname="extractVar"
+        ref = ref_fasta,sample="{samples}",gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="extractVar"
     shell:
         """
         mkdir -p sample_vcfs
@@ -420,19 +434,19 @@ rule extract_sample_variants:
         gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.sample} --exclude-non-variants
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
-        module load VEP
-        vep -sf sample_vcfs/{params.sample}.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
+        module load VEP/96
+        vep -sf sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0"""
 
 ##Extract sample variants
 rule extract_joint_sample_variants:
     input:
-        "joint_vcfs/filtered.vcf",
+        "joint_vcfs/joint_filtered.vcf",
     output:
-        vcf="joint_vcfs/sample_vcfs/{samples}.vcf",
-        bcftools="joint_vcfs/sample_vcfs/{samples}.bcftools",
+        vcf="joint_vcfs/sample_vcfs/{samples}.joint.vcf",
+        bcftools="joint_vcfs/sample_vcfs/{samples}.joint.bcftools",
         vep="joint_vcfs/sample_vcfs/{samples}.vep",
     params:
-        ref = ref_fasta,sample="{samples}",gff=gff_file,rname="extractVar"
+        ref = ref_fasta,sample="{samples}",gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="extractVar"
     shell:
         """
         mkdir -p joint_vcfs/sample_vcfs
@@ -440,5 +454,117 @@ rule extract_joint_sample_variants:
         gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.sample} --exclude-non-variants
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
-        module load VEP
-        vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick"""
+        module load VEP/96
+        vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0"""
+
+##Annotation
+rule annotation:
+    input:
+        vcf="joint_vcfs/joint_filtered.vcf",
+        vep="joint_vcfs/joint_filtered.vep",
+    output:
+        genotypes="joint_vcfs/joint_filtered.genotypes",
+        table="joint_vcfs/joint_filtered.table",
+        merged="joint_vcfs/merged_annotated_table.tsv"
+    params:
+        ref = ref_fasta,gff=gff_file,rname="annotate"
+    shell:
+        """
+        module load samtools
+        bcftools query -f '%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n' {input.vcf} > {output.genotypes}
+        module load GATK/4.1.2.0
+        gatk VariantsToTable -V {input.vcf} -O {output.table} -F EVENTLENGTH -F TRANSITION -F HET -F HOM-REF -F HOM-VAR -F NO-CALL -F TYPE -F VAR -F NSAMPLES -F NCALLED -F MULTI-ALLELIC -GF DP -GF AD -GF GT
+        perl /data/NCBR/apps/make_annotated_table.pl {input.vcf} {output.genotypes} {output.table} {input.vep} {output.merged}"""
+
+##pbsv discover from ccs reads
+rule pbsv_ccs_discover:
+    input:
+        "ccs_reads/{samples}.ccs.fastq"
+    output:
+        bam="pbsv/ccs/{samples}.sort.bam",
+        svdisc="pbsv/ccs/{samples}.svsig.gz"
+    params:
+        ref = ref_fasta,sample="{samples}",rname="pbsvCCS1"
+    shell:
+        """mkdir -p pbsv
+        mkdir -p pbsv/ccs
+        set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbmm2 align {params.ref} {input} {output.bam} --preset CCS --sort -j 12 --sample {params.sample}
+        pbsv discover {output.bam} {output.svdisc}
+        """
+
+##pbsv call from ccs reads
+rule pbsv_ccs_call:
+    input: expand("pbsv/ccs/{samples}.svsig.gz",samples=DATA_SAMPLES)
+    output:
+        sv="pbsv/ccs/joint.sv.vcf"
+    params:
+        ref = ref_fasta,rname="pbsvCCS2"
+    shell:
+        """set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbsv call --ccs {params.ref} {input} {output.sv}
+        """
+
+##pbsv discover from raw reads
+rule pbsv_raw_discover:
+    input: data_path+"raw_reads/{samples}.bam"
+    output:
+        bam="pbsv/raw/{samples}.sort.bam",
+        svdisc="pbsv/raw/{samples}.svsig.gz"
+    params:
+        ref = ref_fasta,sample="{samples}",rname="pbsvRAW1"
+    shell:
+        """mkdir -p pbsv
+        mkdir -p pbsv/raw
+        set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbmm2 align {params.ref} {input} {output.bam} --sort -j 12 --sample {params.sample}
+        pbsv discover {output.bam} {output.svdisc}
+        """
+
+##pbsv call from raw reads
+rule pbsv_raw_call:
+    input: expand("pbsv/raw/{samples}.svsig.gz",samples=DATA_SAMPLES)
+    output:
+        sv="pbsv/raw/joint.sv.vcf"
+    params:
+        ref = ref_fasta,rname="pbsvRAW2"
+    shell:
+        """set -eux
+        echo "Testing vitualenv"
+        set +u
+        source /data/NCBR/rawdata/NCBR-56/ccs_bams/conda/bin/activate
+        set -u
+        pbsv call {params.ref} {input} {output.sv}
+        """
+
+##pbsv annotate and make table
+rule pbsv_raw_table:
+    input: vcf="pbsv/raw/joint.sv.vcf"
+    output: genotypes="pbsv/raw/joint.sv.genotypes",
+        table="pbsv/raw/joint.sv.table",
+        vep="pbsv/raw/joint.sv.vep",
+        merged="pbsv/raw/joint.sv.annotated.tsv"
+    params:
+        ref = ref_fasta,gff=gff_file,ids=gene_symbols,desc=gene_descriptions,rname="svannotate"
+    shell:
+        """
+        module load samtools
+        bcftools query -f '%CHROM\\t%POS\\t%INFO/END\\t%ID\\t%FILTER\\t%INFO/SVTYPE\\t%INFO/SVLEN[\\t%GT]\\n' {input.vcf} > {output.genotypes}
+        module load GATK/4.1.2.0
+        gatk VariantsToTable -V {input.vcf} -O {output.table} -F EVENTLENGTH -F TRANSITION -F HET -F HOM-REF -F HOM-VAR -F NO-CALL -F TYPE -F VAR -F NSAMPLES -F NCALLED -F MULTI-ALLELIC -GF DP -GF AD -raw
+        module load VEP/96
+        vep -sf pbsv/raw/vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
+        perl /data/NCBR/apps/make_annotated_sv_table.pl {input.vcf} {output.genotypes} {output.table} {output.vep} {output.merged}
+        """
