@@ -22,7 +22,7 @@ while (<B>){
  	@line = split;
  	last if ($a>0);
 	if ($line[0] !~ m/##/) {
-	 	print C "$line[0]\tSV_START\tSV_END\t$line[2]\t$line[6]\tSV_TYPE\tSV_LENGTH\t$line[3]\t$line[4]";
+	 	print C "$line[0]\tSV_START\tSV_END\t$line[2]\t$line[6]\tSV_TYPE\tSV_LENGTH";
 		for ($a = 9; $a < @line; $a++) {
 			print C "\t$line[$a].genotypes";
 			push @samples, $line[$a];

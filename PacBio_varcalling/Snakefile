@@ -378,7 +378,7 @@ rule filter:
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
-        module load VEP
+        module load VEP/96
         vep -sf filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
         """
 
@@ -413,7 +413,7 @@ rule filter_joint:
         module load samtools
         bcftools stats -F {params.ref} {output.filtered} > {output.bcftools}
         bcftools stats -F {params.ref} {input.vcf} > {output.bcftoolsraw}
-        module load VEP
+        module load VEP/96
         vep -sf joint_vcfs/joint_filtered.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {output.filtered} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
         """
 
@@ -434,7 +434,7 @@ rule extract_sample_variants:
         gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.sample} --exclude-non-variants
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
-        module load VEP
+        module load VEP/96
         vep -sf sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0"""
 
 ##Extract sample variants
@@ -454,7 +454,7 @@ rule extract_joint_sample_variants:
         gatk SelectVariants -R {params.ref} --variant {input} -O {output.vcf} -sn {params.sample} --exclude-non-variants
         module load samtools
         bcftools stats -F {params.ref} {output.vcf} > {output.bcftools}
-        module load VEP
+        module load VEP/96
         vep -sf joint_vcfs/sample_vcfs/{params.sample}.vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0"""
 
 ##Annotation
@@ -561,9 +561,9 @@ rule pbsv_raw_table:
     shell:
         """
         module load samtools
-        bcftools query -f '%CHROM\\t%POS\\t%INFO/END\\t%ID\\t%FILTER\\t%INFO/SVTYPE\\t%INFO/SVLEN\\t%REF\\t%ALT[\\t%GT]\\n' {input.vcf} > {output.genotypes}
+        bcftools query -f '%CHROM\\t%POS\\t%INFO/END\\t%ID\\t%FILTER\\t%INFO/SVTYPE\\t%INFO/SVLEN[\\t%GT]\\n' {input.vcf} > {output.genotypes}
         module load GATK/4.1.2.0
-        gatk VariantsToTable -V {input.vcf} -O {output.table} -F EVENTLENGTH -F TRANSITION -F HET -F HOM-REF -F HOM-VAR -F NO-CALL -F TYPE -F VAR -F NSAMPLES -F NCALLED -F MULTI-ALLELIC -GF DP -GF AD -GF GT -raw
+        gatk VariantsToTable -V {input.vcf} -O {output.table} -F EVENTLENGTH -F TRANSITION -F HET -F HOM-REF -F HOM-VAR -F NO-CALL -F TYPE -F VAR -F NSAMPLES -F NCALLED -F MULTI-ALLELIC -GF DP -GF AD -raw
         module load VEP/96
         vep -sf pbsv/raw/vepstats.html --force_overwrite --fasta {params.ref} --gff {params.gff} --tab -i {input} --format vcf -o {output.vep} --pick --custom {params.ids},geneSymbol,bed,overlap,0 --custom {params.desc},geneDescription,bed,overlap,0
         perl /data/NCBR/apps/make_annotated_sv_table.pl {input.vcf} {output.genotypes} {output.table} {output.vep} {output.merged}
