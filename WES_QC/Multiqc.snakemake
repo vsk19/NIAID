@@ -29,48 +29,48 @@ rule fastqc:
 	output: join("FastQC/{Sample}_fastqc.html")
 	params: adapters=config['references']['fastqc_adapters']
 	threads: 8
-	shell: "module load fastqc;fastqc -o FastQC -f fastq --threads {threads} -f bam --contaminants {params.adapters} {input}"
+	shell: "set +u;module load fastqc;fastqc -o FastQC -f fastq --threads {threads} -f bam --contaminants {params.adapters} {input}"
 
 rule qualimap:
  	input: join("../BAM/","{Sample}.bam")
 	output: txt = join("{Sample}","genome_results.txt"), html = join("{Sample}", "qualimapReport.html")
 	threads:8
   	params:regions=config['references']['REGIONS'], dir = "{Sample}"
-  	shell: "module load qualimap;unset DISPLAY; qualimap bamqc -bam {input} --java-mem-size=48G -c gd hg19 -ip -outdir {params.dir} -gff {params.regions} -outformat HTML -nt {threads} --skip-duplicated -nw 500 -p NON-STRAND-SPECIFIC"
+  	shell: "set +u;module load qualimap;unset DISPLAY; qualimap bamqc -bam {input} --java-mem-size=48G -c gd hg19 -ip -outdir {params.dir} -gff {params.regions} -outformat HTML -nt {threads} --skip-duplicated -nw 500 -p NON-STRAND-SPECIFIC"
 
 rule samtools_flagstats:
 	input:bam= join("../BAM/","{Sample}.bam")
 	output:join("Flagstats/{Sample}.flagstats")
-	shell: "module load samtools; samtools flagstat {input} > {output}"
+	shell: "set +u;module load samtools; samtools flagstat {input} > {output}"
 
 rule vcftools:
 	input:vcftools = join("../VCF/", "{VCF}.vcf.gz")
         output:out=join("{VCF}.het")
-        shell:"module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2; vcftools --gzvcf {input} --het --out {wildcards.VCF};module load R/3.5.1;Rscript vcftools_barplot.R"
+        shell:"set +u;module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2; vcftools --gzvcf {input} --het --out {wildcards.VCF};module load R/3.5.1;Rscript vcftools_barplot.R"
 
 rule collectvarintcallmetrics:
         input:metrics = join("../VCF/", "{VCF}.vcf.gz")
         output:out = join("{VCF}.variant_calling_detail_metrics")
         params:vcf=config['references']['DBSNP']
-        shell:"module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={wildcards.VCF} DBSNP={params.vcf};module load R/3.5.1;Rscript Variant_metrics_barplot.R"
+        shell:"set +u;module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT={wildcards.VCF} DBSNP={params.vcf};module load R/3.5.1;Rscript Variant_metrics_barplot.R"
 
 rule Gatk_SelectVariants:
 	input:selectvariants = expand(join("../VCF/","{VCF}.vcf.gz"),VCF=VCF_ID)
 	output:temp(join("{Sample}.vcf.gz"))
 	params:genome=config['references']['GENOME'], Sname = "{Sample}"
-	shell: "module load GATK/3.7-0-Java-1.8.0_92;java -Xmx64g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants"
+	shell:"set +u;module load GATK/3.7-0-Java-1.8.0_92;java -Xmx64g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants"
 
 rule bcftools:
 	input:"{Sample}.vcf.gz"
   	output:join("BCFStats/{Sample}")
-  	shell: "module load bcftools/1.4.1-goolf-1.7.20; bcftools stats {input} > {output}"
+  	shell: "set +u;module load bcftools/1.4.1-goolf-1.7.20; bcftools stats {input} > {output}"
 
 rule varianteval:
 	input:vcf = "{Sample}.vcf.gz"
 	output:join("VariantEval/{Sample}")
 	params:genome=config['references']['GENOME'],vcf=config['references']['DBSNP']
 	threads: 4
-	shell:"module load GATK/3.7-0-Java-1.8.0_92;java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input.vcf} -nt {threads}"
+	shell:"set +u;module load GATK/3.7-0-Java-1.8.0_92;java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input.vcf} -nt {threads}"
 
 rule snpeff:
 	input:"{Sample}.vcf.gz"
@@ -78,7 +78,7 @@ rule snpeff:
 	       csv = join("SNPeff/{Sample}/{Sample}"),
 	       html = join("SNPeff/{Sample}/{Sample}.html")
 	params:genome=config['references']['SNPEFF_GENOME'],effconfig=config['references']['SNPEFF_CONFIG']
-	shell: "module load java/1.8.0_92; java -Xmx24g -jar /hpcdata/dir/CIDR_DATA_RENAMED/references/snpEff/snpEff.jar -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
+	shell: "set +u;module load java/1.8.0_92; java -Xmx24g -jar /hpcdata/dir/CIDR_DATA_RENAMED/references/snpEff/snpEff.jar -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
 
 rule multiqc:
  	input:expand(join("FastQC/{Sample}_fastqc.html"),Sample=BAM_ID),
@@ -89,5 +89,5 @@ rule multiqc:
  		expand(join("BCFStats/{Sample}"),Sample = BAM_ID)
  	output:out1 = "{dir}_Report.html"
 	params:patterns=config['references']['PATTERNS']
- 	shell:"module load multiqc;multiqc --interactive -c {params.patterns} -f -n {output.out1} --interactive ."
+ 	shell:"set +u;module load multiqc;multiqc --interactive -c {params.patterns} -f -n {output.out1} --interactive ."
 
