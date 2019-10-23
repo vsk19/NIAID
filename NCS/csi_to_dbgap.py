@@ -135,6 +135,7 @@ def add_family_ids(df):
 
 # Adds column with CIDR Exome IDs linking twins and their probands
 def add_twin_ids(df):
+
     df['Twin ID'] = ''
     df.index = range(df.shape[0])
     
@@ -144,7 +145,7 @@ def add_twin_ids(df):
         # find where the twins are in the df
         if df['Relationship'][i] == 'Monozygotic twin sister' or df['Relationship'][i] == 'Monozygotic twin brother':
 
-            fam_id = df['Phenotips_Family_ID'][i]
+          fam_id = df['Phenotips_Family_ID'][i]
             fam_members = df[df['Phenotips_Family_ID'] == fam_id]
             proband_ind = fam_members.index[fam_members['Relationship'] == 'Proband self']  #find the proband in the subset of family members
             
@@ -308,6 +309,7 @@ def write_files(df, filenames):
 
     # Export sample attribute file
     sampleFields = ['SAMPLE_ID', 'ANALYTE_TYPE', 'IS_TUMOR', 'BODY_SITE', 'SEQUENCING_CENTER']
+
     sampleAttributes = df[df['Include_SSM'] == 'Yes']
     sampleAttributes[sampleFields].to_csv(filenames[4], sep="\t", header=True, index=False)
 
@@ -468,6 +470,7 @@ def main():
     print(dbgapDF.shape)
 #    print(dbgapDF.head())
     dbgapDF = add_twin_ids(dbgapDF)
+
     print(dbgapDF.shape)
     
     ######################################
