@@ -1,0 +1,34 @@
+{
+      "__default__": {
+              "partition": "avx2",
+              "threads":"4"
+      },
+
+      "bam": {
+              "threads": "2"
+      },
+
+      "qc": {
+              "threads": "2",
+              "partition": "norm"
+      },
+
+      "ped": {
+              "threads": "2",
+              "partition": "norm"
+      },
+
+      "inbreeding": {
+              "threads": "8",
+              "partition": "avx2"
+      },
+
+      "cnv_post": {
+              "threads": "8",
+              "partition": "avx2"
+      },
+      "hla": {
+              "threads": "8",
+              "partition": "avx2"
+      }
+}

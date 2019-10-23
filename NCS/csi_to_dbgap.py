@@ -38,16 +38,16 @@ from ncbr_bsi import read_conf, get_bsi_session, bsi_query
 #
 ######################################
 
-def filter_results(df, batch):
-    # only samples up through the specified batch number
-    df = df[df['Batch_Received'] <= batch]
+# Per Jia's email: We want to only filter on CIDR EXOME ID. Leave Auto Complete and Cancelled in
+def filter_results(df):
 
     # only data that are
     df = df[df['Batch_Received'].str.contains("BATCH")]
+    df = df[df['Tissue'] != '']
 
     # get rid of canceled orders
-    df = df.loc[~df['CRIS_Order_Status'].str.contains('Cancel')]
-    df = df[df['CRIS_Order_Status'] != 'Auto Complete']
+#    df = df.loc[~df['CRIS_Order_Status'].str.contains('Cancel')]
+#    df = df[df['CRIS_Order_Status'] != 'Auto Complete']
     df.drop(columns = ['CRIS_Order_Status'], inplace=True)
 
     # require CIDR_Exome_ID SUE: will need to update this field to BCM
@@ -55,6 +55,12 @@ def filter_results(df, batch):
     
     # SUE check for unique CIDR Exome IDs on all 
 
+    return(df)
+    
+# cuts out all rows from batches after "batch"
+def cut_batches(df, batch):
+    # only samples up through the specified batch number
+    df = df[df['Batch_Received'] <= batch]
     return(df)
     
 def add_parent_ids(df):
@@ -67,14 +73,16 @@ def add_parent_ids(df):
 #    print(fathers[:10])
 
     parent_fields = ['Phenotips ID', 'CIDR Exome ID', 'CRIS Order Status']
-    mDF = bsi_query(curl_get, url_reports, session, parent_fields, mothers, 'Phenotips ID')
+    
+    # Grabs CIDR IDs for parents and eliminates rows that don't have CIDR Exome IDs
+    mDF = bsi_query(curl_get, url_reports, session, parent_fields, mothers, 'Phenotips ID') #Gets CIDR Exome IDs for all moms
     mDF = mDF[mDF['CIDR_Exome_ID'] != '']
     mDF = mDF.loc[~mDF['CRIS_Order_Status'].str.contains('Cancel')]
     mDF = mDF[mDF['CRIS_Order_Status'] != 'Auto Complete']
     mDF.rename(columns={'Phenotips_ID': 'Mother_Phenotips_ID', 'CIDR_Exome_ID': 'MOTHER'}, inplace=True)
     mDF.drop(columns=['CRIS_Order_Status'], inplace=True)
     
-    fDF = bsi_query(curl_get, url_reports, session, parent_fields, fathers, 'Phenotips ID')
+    fDF = bsi_query(curl_get, url_reports, session, parent_fields, fathers, 'Phenotips ID') #Gets CIDR Exome IDs for all dads
     fDF = fDF[fDF['CIDR_Exome_ID'] != '']
     fDF = fDF.loc[~fDF['CRIS_Order_Status'].str.contains('Cancel')]
     fDF = fDF[fDF['CRIS_Order_Status'] != 'Auto Complete']
@@ -86,6 +94,8 @@ def add_parent_ids(df):
 #    print(mDF.head())
 #    print(fDF.head())
 
+    # These left merges add CIDR Exome IDs to rows that have valid CIDR IDs in BSI
+    # Adds NAs to rows where there's a parents phen ID but not corresponding CIDR ID
     df = pd.merge(df, mDF, on='Mother_Phenotips_ID', how='left')
     df = pd.merge(df, fDF, on='Father_Phenotips_ID', how='left')
     
@@ -105,7 +115,6 @@ def add_parent_ids(df):
     
 def add_family_ids(df):
     # pull family IDs, get the proband, and use that CIDR Exome ID
-#    df = dbgapDF
     probandDF = df[df['Proband'] == "Yes"][['Phenotips_Family_ID', 'Phenotips_ID', 'CIDR_Exome_ID']]
     probandDF['FAMILY_ID'] = "FAM-" + probandDF['CIDR_Exome_ID']
 #    print(probandDF.head())
@@ -126,22 +135,50 @@ def add_family_ids(df):
 
 # Adds column with CIDR Exome IDs linking twins and their probands
 def add_twin_ids(df):
-    df['Twin ID'] = 0
-    df.index = range(df.shape[0])
 
+    df['Twin ID'] = ''
+    df.index = range(df.shape[0])
+    
 #    fill in IDs
     for i in range(df.shape[0]):
         
         # find where the twins are in the df
         if df['Relationship'][i] == 'Monozygotic twin sister' or df['Relationship'][i] == 'Monozygotic twin brother':
-            fam_id = df['Phenotips_Family_ID'][i]
+
+          fam_id = df['Phenotips_Family_ID'][i]
             fam_members = df[df['Phenotips_Family_ID'] == fam_id]
             proband_ind = fam_members.index[fam_members['Relationship'] == 'Proband self']  #find the proband in the subset of family members
             
-            df['Twin ID'][i] = fam_members['CIDR_Exome_ID'][proband_ind[0]]  #twin's ID will be proband's Phenotips ID
-            df['Twin ID'][proband_ind] = df['CIDR_Exome_ID'][i]  #proband's ID will be twin's Phenotips ID
+            #Sets Twin ID for both twins as MZ + lower Phenotips ID
+            # NEEDS CHANGING
+            ###### !!!!!!!!!!!!!!!!!!
+            prob_id = df['Phenotips_ID'][proband_ind]
+            twin_id = "MZ" + str(prob_id)
+            df['Twin ID'][i] = twin_id
+            df['Twin ID'][proband_ind] = twin_id
     
     return df
+
+# Recursive methods adds rows and rows for mother, maternal grandmother, great grandmother etc...
+def add_parent_rows(bsi_df, to_add, dbgap, counter):
+    
+    if counter == 1:    #Gets father/grandfather and mother/grandmother IDs that don't already exist as a separate row in the dbgap df
+        mother_ids = dbgap.query('Mother_Phenotips_ID.str.contains("P") and ~(Mother_Phenotips_ID in Phenotips_ID)')['Mother_Phenotips_ID']
+        father_ids = dbgap.query('Father_Phenotips_ID.str.contains("P") and ~(Father_Phenotips_ID in Phenotips_ID)')['Father_Phenotips_ID']
+    else:               #Gets father/grandfather and mother/grandmother IDs that don't already exist as a separate row in the list of rows that were just added to the dbgap df
+        mother_ids = to_add.query('Mother_Phenotips_ID.str.contains("P") and ~(Mother_Phenotips_ID in Phenotips_ID)')['Mother_Phenotips_ID']
+        father_ids = to_add.query('Father_Phenotips_ID.str.contains("P") and ~(Father_Phenotips_ID in Phenotips_ID)')['Father_Phenotips_ID']
+ 
+    # Base Case: 
+    if len(mother_ids) == 0 and len(father_ids) == 0:
+        print('Added parent rows...')
+        return dbgap
+
+    to_add = bsi_df.query('Phenotips_ID.isin(@mother_ids) or Phenotips_ID.isin(@father_ids)')
+    to_add['Include_SSM'] = 'No'
+    
+    dbgap = dbgap.append(to_add)
+    return add_parent_rows(bsi_df, to_add, dbgap, counter + 1)
 
 
 ######################################
@@ -167,14 +204,15 @@ def write_files(df, filenames):
     df[consentFields].to_csv(filenames[0], sep="\t", header=True, index=False)
 
     #
-    # Sample Mapping
+    # Subject Sample Mapping
     #
     ## What to use for the sample ID?  PhenotipsID + _1
     ## SUE: we need to be sure that if we have more than one sample we use the consistent
     ## Subject ID and increment the sample ID
     df['SAMPLE_ID'] = df['SUBJECT_ID'] + '_1'
     mapFields = ['SUBJECT_ID', 'SAMPLE_ID']
-    df[mapFields].to_csv(filenames[1], sep="\t", header=True, index=False)
+    ssm = df[df['Include_SSM'] == 'Yes']
+    ssm[mapFields].to_csv(filenames[1], sep="\t", header=True, index=False)
     
     #
     # Pedigree 
@@ -271,10 +309,43 @@ def write_files(df, filenames):
 
     # Export sample attribute file
     sampleFields = ['SAMPLE_ID', 'ANALYTE_TYPE', 'IS_TUMOR', 'BODY_SITE', 'SEQUENCING_CENTER']
-    df[sampleFields].to_csv(filenames[4], sep="\t", header=True, index=False)
+
+    sampleAttributes = df[df['Include_SSM'] == 'Yes']
+    sampleAttributes[sampleFields].to_csv(filenames[4], sep="\t", header=True, index=False)
 
     # Done
     return()
+
+def remove_duplicates(dbgap):
+    
+    dbgap['Order_Date'] = str(dbgap['Order_Date'])
+    dups = dbgap[~dbgap.duplicated(keep = 'first')]
+    
+    return dups
+
+def check_duplicates(dbgap):
+    dups = dbgap[dbgap['Phenotips_ID'].duplicated(keep = False)]
+    dups.reset_index(drop = True, inplace = True)
+    print(dups)
+#    dups = dups.groupby(dups.columns.tolist()).apply(lambda x: tuple(x.index)).tolist()
+#    print(dups)
+    
+    if dups.shape[0] > 0:
+        dups['Order_Date'] = str(dups['Order_Date'])
+        cols = dups.columns    
+        for i in range(1, len(dups)):
+            if dups.at[i, 'Phenotips_ID'] == dups.at[i-1, 'Phenotips_ID']:
+                print(dups.at[i, 'Phenotips_ID'])
+                for col in cols:
+                    print(col + ': ')
+                    if dups.at[i, col] == dups.at[i-1, col]:
+                        print('Same')
+                    else:
+                        print('Diff')
+                    print()
+    else:
+        print('Success! No Duplicate Rows!')
+            
 
 ####################################
 # 
@@ -368,19 +439,40 @@ def main():
               'CRIS Order Status', 
               'Order Date']
 
-    dbgapDF = bsi_query(curl_get, url_reports, session, fields, ['BATCH*'], 'Batch Received', False)
+    bsi = bsi_query(curl_get, url_reports, session, fields, ['BATCH*'], 'Batch Received', False)
+    bsi = bsi.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
+    bsi.to_csv('bsi_query.csv', index = False)
+
+#    FIGURE OUT HOW THE HECK TO REMOVE DUPS!!!
+
+#    bsi = pd.read_csv('bsi_query.csv')
     
 #    print(dbgapDF.shape)
-    dbgapDF = filter_results(dbgapDF, batch_name)
-#    print(dbgapDF.shape)
+    bsi = filter_results(bsi)
+    
+    dbgapDF = cut_batches(bsi, batch_name)
+    print(dbgapDF.shape)
+    
+    dbgapDF.drop_duplicates(inplace = True)
+    print(dbgapDF.shape)
+    
+    dbgapDF.to_csv('before_add_parents.csv', index = False)
+    
+    dbgapDF['Include_SSM'] = 'Yes'
+    dbgapDF = add_parent_rows(bsi, None, dbgapDF, 1)
+    print(dbgapDF.shape)
     
     dbgapDF = add_parent_ids(dbgapDF)
-#    print(dbgapDF.head())
+    dbgapDF.to_csv('after_add_parents.csv', index = False)    
+    print(dbgapDF.shape)
     
     dbgapDF = add_family_ids(dbgapDF)
+    print(dbgapDF.shape)
 #    print(dbgapDF.head())
     dbgapDF = add_twin_ids(dbgapDF)
 
+    print(dbgapDF.shape)
+    
     ######################################
     #   
     # Creating output files (SampleTracking, Masterkey, Pedigree, Batch Info
@@ -395,6 +487,13 @@ def main():
                 '4a_Pedigree_DS.txt', 
                 '5a_SubjectPhenotypes_DS.txt', 
                 '6a_SampleAttributes_DS.txt']
+    dbgapDF.to_csv('final_with_dups.csv')
+
+    dbgapDF = remove_duplicates(dbgapDF)
+    print(dbgapDF.shape)
+    
+    check_duplicates(dbgapDF)
+    dbgapDF.to_csv('final.csv')
 
     write_files(dbgapDF, outfiles)
 

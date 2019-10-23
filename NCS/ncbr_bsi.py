@@ -76,16 +76,24 @@ def get_bsi_session(url, user, pw):
 def get_bsi_name(infield):
     fieldDict = {'CRIS Order #' : 'sample.field_274',
         'Phenotips ID' : 'sample.field_252',
+        'Phenotips ID Subject' : 'subject_131.field_173',
         'Phenotips Family ID' : 'subject_131.field_170',
         'Batch Sent' : 'sample.field_323',
+        'Batch Sent Subject': 'subject_131.field_194',
         'Batch Received' : 'sample.field_324',
+        'Batch Received Subject' : 'subject_131.field_195',
         'Batch Ready' : 'sample.field_340',
+        'Instructive Case' : 'subject_131.field_220', 
+        'Instructive Case Comments' : 'subject_131.field_221',
         
         'Father PhenotipsId' : 'subject_131.field_161',
         'Mother PhenotipsId' : 'subject_131.field_167',
         'Father Phenotips ID' : 'subject_131.field_161',
         'Mother Phenotips ID' : 'subject_131.field_167',
         'Family Complete Status': 'subject_131.field_188',
+        'Family MRN' : 'subject_131.field_157',
+        'Father MRN' : 'subject_131.field_160',
+        'Mother MRN' : 'subject_131.field_166',
 
         'Adopted' : 'subject_131.field_149',
         'Relationship' : 'subject_131.field_182',
@@ -139,7 +147,7 @@ def bsi_query(curl, url, session, fields, theIDs, search_field, isequal=True, is
         curl += "%3D%40" + "%3B".join(theIDs)
 
     curl = curl + "&type=1'"
-    #print(curl)
+#    print(curl)
 
     # Get the data using the curl command
     data = send_curl(curl)
