@@ -3,16 +3,13 @@
 """
 Created on Mon Jun 24 10:16:58 2019
 Updated on
-
 Susan Huse
 NIAID Center for Biological Research
 Frederick National Laboratory for Cancer Research
 Leidos Biomedical
-
 csi_to_dbgap.py
     Reads the sample mapping and VCF information and 
     preps the metadata for uploading to GRIS
-
 v 1.0 - initial code version.
     
 """
@@ -93,14 +90,14 @@ def add_parent_ids(df):
     df = pd.merge(df, fDF, on='Father_Phenotips_ID', how='left')
     
     # fill in missing values for Mother and Father
-    df.MOTHER.replace('^00$', 'UNK', regex=True, inplace=True)
-    df.MOTHER.replace("0", 'UNK', inplace=True)
-    df.MOTHER.replace(np.NaN, 'UNK', inplace=True)
-    df.MOTHER.replace("", 'UNK', inplace=True)
+    df.MOTHER.replace('^00$', '0', regex=True, inplace=True)
+    df.MOTHER.replace("0", '0', inplace=True)
+    df.MOTHER.replace(np.NaN, '0', inplace=True)
+    df.MOTHER.replace("", '0', inplace=True)
 
-    df.FATHER.replace(np.NaN, 'UNK', inplace=True)
-    df.FATHER.replace("0", 'UNK', inplace=True)
-    df.FATHER.replace("", 'UNK', inplace=True)
+    df.FATHER.replace(np.NaN, '0', inplace=True)
+    df.FATHER.replace("0", '0', inplace=True)
+    df.FATHER.replace("", '0', inplace=True)
 
 #    print(df.head())
 
@@ -126,6 +123,26 @@ def add_family_ids(df):
 #    print(df.head())
 
     return(df)
+
+# Adds column with CIDR Exome IDs linking twins and their probands
+def add_twin_ids(df):
+    df['Twin ID'] = 0
+    df.index = range(df.shape[0])
+
+#    fill in IDs
+    for i in range(df.shape[0]):
+        
+        # find where the twins are in the df
+        if df['Relationship'][i] == 'Monozygotic twin sister' or df['Relationship'][i] == 'Monozygotic twin brother':
+            fam_id = df['Phenotips_Family_ID'][i]
+            fam_members = df[df['Phenotips_Family_ID'] == fam_id]
+            proband_ind = fam_members.index[fam_members['Relationship'] == 'Proband self']  #find the proband in the subset of family members
+            
+            df['Twin ID'][i] = fam_members['CIDR_Exome_ID'][proband_ind[0]]  #twin's ID will be proband's Phenotips ID
+            df['Twin ID'][proband_ind] = df['CIDR_Exome_ID'][i]  #proband's ID will be twin's Phenotips ID
+    
+    return df
+
 
 ######################################
 #   
@@ -172,8 +189,13 @@ def write_files(df, filenames):
     #Affection (0=unknown; 1=unaffected; 2=affected)
     #Genotypes (space or tab separated, 2 for each marker. 0=missing)
 
-    df.rename(columns={'Gender' : 'SEX'}, inplace=True)
-    pedFields = ['FAMILY_ID', 'SUBJECT_ID', 'MOTHER', 'FATHER', 'SEX']
+    df.rename(columns={'Gender' : 'SEX',
+                       'Adopted' : 'ADOPTED',
+                       'Twin ID' : 'MZ_TWIN_ID'}, inplace=True)
+    pedFields = ['FAMILY_ID', 'SUBJECT_ID', 'MOTHER', 'FATHER', 'SEX', 'ADOPTED', 'MZ_TWIN_ID']
+#    df.ADOPTED.replace('', 'No', inplace = True)
+    df.ADOPTED.replace('', 'No', inplace = True)
+#    df.ADOPTED.replace('Unknown', '0', inplace = True)
 
 
     # Convert gender to 1=Male 2=Female
@@ -230,14 +252,14 @@ def write_files(df, filenames):
     df['SEQUENCING_CENTER'] = 'CIDR'
     df.loc[df.Batch_Number > 19, 'SEQUENCING_CENTER'] = 'BCM'
 
-    df.rename(columns={'Tissue' : 'HISTOLOGICAL_TYPE'}, inplace=True)
+    df.rename(columns={'Tissue' : 'BODY_SITE'}, inplace=True)
     ##SUE!! using the coded values from BSI, MeSH would be better, but not all are clear values
-    df.HISTOLOGICAL_TYPE.replace('9', 'Saliva', inplace=True)
-    df.HISTOLOGICAL_TYPE.replace('15', 'Blood', inplace=True)
-    df.HISTOLOGICAL_TYPE.replace('18', 'EBV Transformed B cell line', inplace=True)
-    df.HISTOLOGICAL_TYPE.replace('21', 'PBMC', inplace=True)
-    df.HISTOLOGICAL_TYPE.replace('22', 'Neutrophils', inplace=True)
-    df.HISTOLOGICAL_TYPE.replace('23', 'Fibroblast', inplace=True)
+    df.BODY_SITE.replace('9', 'Saliva', inplace=True)
+    df.BODY_SITE.replace('15', 'Blood', inplace=True)
+    df.BODY_SITE.replace('18', 'EBV Transformed B cell line', inplace=True)
+    df.BODY_SITE.replace('21', 'PBMC', inplace=True)
+    df.BODY_SITE.replace('22', 'Neutrophils', inplace=True)
+    df.BODY_SITE.replace('23', 'Fibroblast', inplace=True)
 
     ##SUE: get rid of body site, just use tissue
     #df['BODY_SITE'] = 'Unknown'
@@ -248,7 +270,7 @@ def write_files(df, filenames):
 #    df.loc[df.TISSUE == 'Fibroblast', 'BODY_SITE'] = 'Connective Tissue'
 
     # Export sample attribute file
-    sampleFields = ['SAMPLE_ID', 'ANALYTE_TYPE', 'IS_TUMOR', 'HISTOLOGICAL_TYPE', 'SEQUENCING_CENTER']
+    sampleFields = ['SAMPLE_ID', 'ANALYTE_TYPE', 'IS_TUMOR', 'BODY_SITE', 'SEQUENCING_CENTER']
     df[sampleFields].to_csv(filenames[4], sep="\t", header=True, index=False)
 
     # Done
@@ -333,6 +355,8 @@ def main():
               'Father PhenotipsId', 
               'Mother PhenotipsId', 
               'CIDR Exome ID',
+              'Adopted',
+              'Relationship',
               'Gender', 
               'Proband',
               'Affected Status', 
@@ -345,8 +369,8 @@ def main():
               'Order Date']
 
     dbgapDF = bsi_query(curl_get, url_reports, session, fields, ['BATCH*'], 'Batch Received', False)
+    
 #    print(dbgapDF.shape)
-
     dbgapDF = filter_results(dbgapDF, batch_name)
 #    print(dbgapDF.shape)
     
@@ -355,6 +379,7 @@ def main():
     
     dbgapDF = add_family_ids(dbgapDF)
 #    print(dbgapDF.head())
+    dbgapDF = add_twin_ids(dbgapDF)
 
     ######################################
     #   
@@ -384,4 +409,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

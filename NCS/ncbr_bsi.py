@@ -87,8 +87,8 @@ def get_bsi_name(infield):
         'Mother Phenotips ID' : 'subject_131.field_167',
         'Family Complete Status': 'subject_131.field_188',
 
+        'Adopted' : 'subject_131.field_149',
         'Relationship' : 'subject_131.field_182',
-        'Gender' : 'subject_131.field_163',
         'Affected Status' : 'subject_131.field_150',
         'Affected' : 'subject_131.field_150',
 
