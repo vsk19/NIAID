@@ -265,23 +265,38 @@ def create_tracking(sentDF, receivedDF, familyDF, filename):
     # Sent not Received, Received not from ealier batches
     sentIDs = set(sentDF['CRIS_Order#'])
     receivedIDs = set(receivedDF['CRIS_Order#'])
-    sent_not_received = list(sentIDs - receivedIDs)
-    received_from_earlier = list(receivedIDs - sentIDs)
+                                 
+    # VASU: this just takes out sent from received 
+    # update this to any sent IDs - receivedIDs in current batch or earlier batches?
+    
+    no_blanks = sentDF[sentDF['Batch_Received'] != '']
+    sent_and_received = set(no_blanks[no_blanks['Batch_Received'].str.slice(5).astype(int) <= batch]['CRIS_Order#'])    # Samples that were sent in CURRENT batch but received in EARLIER batch 
+#    print(sent_and_received)
+    sent_not_received = list(sentIDs - receivedIDs - sent_and_received)
+#    print(sent_not_received)
+    # VASU: this should also be updated?
+    received_from_other = list(receivedIDs - sentIDs)
     
     # Print Sent not Received
-    sent_not_received_df = sentDF[sentDF['CRIS_Order#'].isin(sent_not_received)][['CRIS_Order#', 'Phenotips_ID', 'Phenotips_Family_ID', 'Batch_Sent']]
-    trackingtxt += "{} sample(s) sent to CIDR in {} have not yet been released:\n{}\n\n".format(str(len(sent_not_received)), batch_label, sent_not_received_df.to_string(index=False))
+    sent_not_received_df = sentDF[sentDF['CRIS_Order#'].isin(sent_not_received)]
+    trackingtxt += "{} sample(s) sent to CIDR in {} have not been released in {}:\n{}\n\n".format(str(len(sent_not_received)), batch_label, batch_label, sent_not_received_df.to_string(index=False))
 
-    # Print Received from Earlier Batches (not sent)
-    received_not_sent_df = receivedDF[receivedDF['CRIS_Order#'].isin(received_from_earlier)][['CRIS_Order#', 'Phenotips_ID', 'Phenotips_Family_ID', 'Batch_Sent']]
+    # Print Received from other batches (not sent from current batch)
+    # VASU: this should be fixed if "received_from_earlier" above is fixed
+    received_not_sent_df = receivedDF[receivedDF['CRIS_Order#'].isin(received_from_other)]  #contains samples that were received in current batch but not sent out from this batch
 
-    trackingtxt += "{} sample(s) sent to CIDR in previous batches were released with {}:\n{}\n\n".format(str(len(received_from_earlier)), batch_label, received_not_sent_df.to_string(index=False))
+#    print(received_not_sent_df.shape[0])
+#    print(received_from_prev_df.shape[0] + received_from_future_df.shape[0])
+    
+    trackingtxt += "{} sample(s) sent to CIDR in other batches were released with {}:\n{}\n\n".format(str(received_not_sent_df.shape[0]), batch_label, received_not_sent_df.to_string(index=False))
 
     # Find family members, previously released (seq) and not yet sequenced (unseq)
     # remove anything that was received with this batch, set as sequenced
     familyDF['CIDR_Exome_ID'].replace('', np.nan, inplace=True)
-    both_family_members = familyDF.loc[~familyDF['CRIS_Order#'].isin(receivedIDs)]
-    both_family_members = both_family_members.loc[~both_family_members['CRIS_Order#'].isin(received_from_earlier)]
+    
+    #both_family_members contains family members that are neither received in current batch nor received in other previous/future batches
+    both_family_members = familyDF.loc[~familyDF['CRIS_Order#'].isin(receivedIDs)]  #filter out family members that were received in current batch
+    both_family_members = both_family_members.loc[~both_family_members['CRIS_Order#'].isin(received_from_other)]    #filter out family members that were received in previous/future batch
 
     # Remove from sequenced anything without a batch received or anything that was canceled
     seq_family_members = both_family_members.loc[~both_family_members['CRIS_Order_Status'].str.contains('Cancel', case=False)]
@@ -312,6 +327,7 @@ def create_tracking(sentDF, receivedDF, familyDF, filename):
                    'Affected']
     unseq_family_members = unseq_family_members[ped_fields].drop_duplicates()
 
+    # VASU: probably the worst offender:
     trackingtxt += "{} sample(s) released in previous batches are family members of sample(s) released with {}.\n{}\n\n".format(str(seq_family_members.shape[0]), batch_label, seq_family_members[family_columns].to_string(index=False))
     trackingtxt += "{} family members have been consented but not yet released.\n{}\n\n".format(str(unseq_family_members.shape[0]), unseq_family_members.to_string(index=False))
 
@@ -330,7 +346,7 @@ def write_files(filenames, familyDF, receivedIDs, seqFamDF, unseqFamDF):
     seqDF = pd.concat([receivedDF, seqFamDF])
 
     if not pedonly:
-        # Write masterkey
+        # Write masterkey: Contains sequenced family members + those received in current batch
         master_fields = ['CRIS_Order#',
                        'Phenotips_ID', 
                        'CIDR_Exome_ID',
@@ -542,16 +558,19 @@ def main():
     ##
     fields = ['CRIS Order #', 'Phenotips ID', 'Phenotips Family ID', 'Batch Sent', 'Batch Received']
     sentDF = bsi_query(curl_get, url_reports, session, fields, [batch_name], 'Batch Sent')
+#    sentDF.to_csv('sentDF.csv')
     #print("Sent:\n{}\n".format(sentDF.head()))
 
     ##
     ## Query BSI for data returned with this batch, and their family members
     ##
     # Pull data for all orders returned with Batch
-    fields = ['CRIS Order #', 'Phenotips ID', 'Phenotips Family ID', 'Batch Sent']
+    fields = ['CRIS Order #', 'Phenotips ID', 'Phenotips Family ID', 'Batch Sent', 'Batch Received']
     receivedDF = bsi_query(curl_get, url_reports, session, fields, samplekey.index.tolist(), 'CRIS Order #')
+#    receivedDF.to_csv('receivedDF.csv')
     #print("Received:\n{}\n".format(receivedDF.head()))
 
+    # Pull data for all family members in receivedDF
     fields = ['CRIS Order #', 'Batch Sent', 'Batch Received', 'Phenotips Family ID', 'Phenotips ID', 'Father PhenotipsId', 'Mother PhenotipsId', 'Gender', 'Affected Status', 'CIDR Exome ID', 'MRN', 'CRIS Order Status']
     familyDF = bsi_query(curl_get, url_reports, session, fields, receivedDF['Phenotips_Family_ID'].unique(), 'Phenotips Family ID')
     
