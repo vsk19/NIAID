@@ -50,8 +50,8 @@ def filter_results(df):
 #    df = df[df['CRIS_Order_Status'] != 'Auto Complete']
     df.drop(columns = ['CRIS_Order_Status'], inplace=True)
 
-    # require CIDR_Exome_ID SUE: will need to update this field to BCM
-    df = df[df['CIDR_Exome_ID'] != '']
+    # require Exome ID SUE: will need to update this field to BCM
+    df = df[df['Exome ID'] != '']
     
     # SUE check for unique CIDR Exome IDs on all 
 
@@ -76,19 +76,19 @@ def add_parent_ids(df):
     
     # Grabs CIDR IDs for parents and eliminates rows that don't have CIDR Exome IDs
     mDF = bsi_query(curl_get, url_reports, session, parent_fields, mothers, 'Phenotips ID') #Gets CIDR Exome IDs for all moms
-    mDF = mDF[mDF['CIDR_Exome_ID'] != '']
+    mDF = mDF[mDF['Exome ID'] != '']
     mDF = mDF.loc[~mDF['CRIS_Order_Status'].str.contains('Cancel')]
     mDF = mDF[mDF['CRIS_Order_Status'] != 'Auto Complete']
-    mDF.rename(columns={'Phenotips_ID': 'Mother_Phenotips_ID', 'CIDR_Exome_ID': 'MOTHER'}, inplace=True)
+    mDF.rename(columns={'Phenotips_ID': 'Mother_Phenotips_ID', 'Exome ID': 'MOTHER'}, inplace=True)
     mDF.drop(columns=['CRIS_Order_Status'], inplace=True)
     
     fDF = bsi_query(curl_get, url_reports, session, parent_fields, fathers, 'Phenotips ID') #Gets CIDR Exome IDs for all dads
-    fDF = fDF[fDF['CIDR_Exome_ID'] != '']
+    fDF = fDF[fDF['Exome ID'] != '']
     fDF = fDF.loc[~fDF['CRIS_Order_Status'].str.contains('Cancel')]
     fDF = fDF[fDF['CRIS_Order_Status'] != 'Auto Complete']
     fDF.drop(columns=['CRIS_Order_Status'], inplace=True)
 
-    fDF.rename(columns={'Phenotips_ID': 'Father_Phenotips_ID', 'CIDR_Exome_ID': 'FATHER'}, inplace=True)
+    fDF.rename(columns={'Phenotips_ID': 'Father_Phenotips_ID', 'Exome ID': 'FATHER'}, inplace=True)
     
 #    print(df.head())
 #    print(mDF.head())
@@ -115,26 +115,27 @@ def add_parent_ids(df):
     
 def add_family_ids(df):
     # pull family IDs, get the proband, and use that CIDR Exome ID
-    probandDF = df[df['Proband'] == "Yes"][['Phenotips_Family_ID', 'Phenotips_ID', 'CIDR_Exome_ID']]
-    probandDF['FAMILY_ID'] = "FAM-" + probandDF['CIDR_Exome_ID']
+    probandDF = df[df['Proband'] == "Yes"][['Phenotips_Family_ID', 'Phenotips_ID', 'Exome ID']]
+    probandDF['FAMILY_ID'] = "FAM-" + probandDF['Exome ID']
 #    print(probandDF.head())
 
     df = pd.merge(df, probandDF, on='Phenotips_Family_ID', how='left')
-    df.drop(columns=['Phenotips_ID_y', 'CIDR_Exome_ID_y'], inplace=True)
-    df.rename(columns={'Phenotips_ID_x': 'Phenotips_ID', 'CIDR_Exome_ID_x': 'CIDR_Exome_ID'}, inplace=True)
+    df.drop(columns=['Phenotips_ID_y', 'Exome ID_y'], inplace=True)
+    df.rename(columns={'Phenotips_ID_x': 'Phenotips_ID', 'Exome ID_x': 'Exome ID'}, inplace=True)
     
     # There are a few that don't have family ID, remove them from the dataframe,
     # This is mostly due to proband not having been returned yet    
     lostDF = df[df.FAMILY_ID.isnull()]
-    # print(lostDF)
+#    print(lostDF)
     
     df = df[~df.FAMILY_ID.isnull()]
 #    print(df.head())
 
     return(df)
 
-# Adds column with CIDR Exome IDs linking twins and their probands
+# Adds column with CIDR Exome IDs linking twins. If twin of proband, use proband's ID to make MZ ID 
 def add_twin_ids(df):
+    df['Exome ID'] = df['Exome ID'].astype(str)
     df['Twin ID'] = ''
     df.index = range(df.shape[0])
     
@@ -146,19 +147,28 @@ def add_twin_ids(df):
 
             fam_id = df['Phenotips_Family_ID'][i]
             fam_members = df[df['Phenotips_Family_ID'] == fam_id]
-            proband_ind = fam_members.index[fam_members['Relationship'] == 'Proband self']  #find the proband in the subset of family members
             
-            #Sets Twin ID for both twins as MZ + lower Phenotips ID
-            # NEEDS CHANGING
-            ###### !!!!!!!!!!!!!!!!!!
-            prob_id = df['Phenotips_ID'][proband_ind]
-            twin_id = "MZ" + str(prob_id)
+            #find the other twin in the subset of family members
+            other_twin_ind = fam_members.query('Relationship == "Monozygotic twin sister" or Relationship == "Monozygotic twin brother"').index.values 
+            twin_id = 'MZ_' + str(min(df.at[i, 'Exome ID'], df[other_twin_ind, 'Exome ID']))
+            df['Twin ID'][i] = twin_id
+            df['Twin ID'][other_twin_ind] = twin_id
+            
+        elif df['Relationship'][i] == 'Monozygotic Twin':
+            fam_id = df['Phenotips_Family_ID'][i]
+            fam_members = df[df['Phenotips_Family_ID'] == fam_id]
+            
+            proband_ind = fam_members.index[fam_members['Relationship'] == 'Proband self'].values[0]  #find the proband in the subset of family members
+            
+            #Sets Twin ID for both twins as MZ + proband
+            prob_id = df.at[proband_ind, 'Exome ID']
+            twin_id = 'MZ_' + prob_id
             df['Twin ID'][i] = twin_id
             df['Twin ID'][proband_ind] = twin_id
     
     return df
 
-# Recursive methods adds rows and rows for mother, maternal grandmother, great grandmother etc...
+# Recursive method adds rows and rows for mother, maternal grandmother, great grandmother etc...
 def add_parent_rows(bsi_df, to_add, dbgap, counter):
     
     if counter == 1:    #Gets father/grandfather and mother/grandmother IDs that don't already exist as a separate row in the dbgap df
@@ -193,7 +203,7 @@ def write_files(df, filenames):
     # Consent - ID and Consent = 1
     #
     ## SUE: we need to be sure that if we have more than one sample we use the consistent Subject ID
-    df['SUBJECT_ID'] = df['CIDR_Exome_ID']
+    df['SUBJECT_ID'] = df['Exome ID']
     df['CONSENT'] = 1
     ###dbgapDF['SUBJECT_SOURCE'] = 'NIAID CSI'
     
@@ -211,6 +221,7 @@ def write_files(df, filenames):
     df['SAMPLE_ID'] = df['SUBJECT_ID'] + '_1'
     mapFields = ['SUBJECT_ID', 'SAMPLE_ID']
     ssm = df[df['Include_SSM'] == 'Yes']
+    build_table(ssm) # Generate HLA Table
     ssm[mapFields].to_csv(filenames[1], sep="\t", header=True, index=False)
     
     #
@@ -324,7 +335,7 @@ def remove_duplicates(dbgap):
 def check_duplicates(dbgap):
     dups = dbgap[dbgap['Phenotips_ID'].duplicated(keep = False)]
     dups.reset_index(drop = True, inplace = True)
-    print(dups)
+#    print(dups)
 #    dups = dups.groupby(dups.columns.tolist()).apply(lambda x: tuple(x.index)).tolist()
 #    print(dups)
     
@@ -344,6 +355,50 @@ def check_duplicates(dbgap):
     else:
         print('Success! No Duplicate Rows!')
             
+# Concat all subject's HLA and write to one table
+def build_table(SSM_df):
+    
+    SSM_df.reset_index(drop = True, inplace = True)
+    hla_tab = pd.DataFrame()
+    cols_set = False
+    colnames = []
+    num_rows = SSM_df.shape[0]
+    path = '/Volumes/DIR/CIDR_DATA_RENAMED/BATCH'
+ 
+#    Loop thru all files
+    for i in range(num_rows):
+        
+        pheno_id = SSM_df.at[i, 'Phenotips_ID']
+        exome_id = SSM_df.at[i, 'Exome ID']
+        
+        #grab batch num from BSI and cut out leading zeros by converting to int then back to str
+        batch_num = str(int(SSM_df.at[i, 'Batch_Received'].split('BATCH', 1)[1]))
+        fname = path + batch_num + '/HLA/' + pheno_id + '/hla/R1_bestguess_G.txt'
+        
+        try:    #ID may be missing so test it
+            df = pd.read_csv(fname, delimiter = "\t")
+        except: #Writes out to error log and skips to next iteration
+            print('Error: Phenotips ID ' + pheno_id + ' is missing from the directory.\n')
+            continue
+        else:   #if no error occurs, append the row 
+            # concatenate ID and alleles to one row and append to HLA table
+            alleles = df['Allele'].values
+            exome_id = exome_id + "_1"
+            row = pd.DataFrame(np.concatenate(([exome_id], alleles), axis = 0)).T
+            hla_tab = hla_tab.append(row, ignore_index = True)
+            
+            if not cols_set:    #if no column names, grab from first input file
+                chroms = df['Chromosome']
+                loci = df['Locus']
+                allele_cols = ["HLA-{} {}".format(locus, chrom) for chrom, locus in zip(chroms, loci)]
+                colnames = ['SAMPLE_ID'] + allele_cols
+                cols_set = True
+        
+    hla_tab.reset_index(drop = True, inplace = True)    #resets row indeces to 0,1,2,3...
+
+    hla_tab.columns = colnames
+    hla_tab.to_csv('HLA_Table_DS.txt', sep = '\t', index = False, header = True)
+    
 
 ####################################
 # 
@@ -369,6 +424,8 @@ def main():
     args = parser.parse_args()
     batch = args.batch
     pd.set_option('display.max_columns', None)
+    pd.options.mode.chained_assignment = None  # remove that pesky "A value is trying to be set on a copy of a slice from a DataFrame." warning
+
     
     #####################################
     #
@@ -441,34 +498,32 @@ def main():
     bsi = bsi.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
     bsi.to_csv('bsi_query.csv', index = False)
 
-#    FIGURE OUT HOW THE HECK TO REMOVE DUPS!!!
-
 #    bsi = pd.read_csv('bsi_query.csv')
     
 #    print(dbgapDF.shape)
     bsi = filter_results(bsi)
     
     dbgapDF = cut_batches(bsi, batch_name)
-    print(dbgapDF.shape)
+#    print(dbgapDF.shape)
     
     dbgapDF.drop_duplicates(inplace = True)
-    print(dbgapDF.shape)
+#    print(dbgapDF.shape)
     
-    dbgapDF.to_csv('before_add_parents.csv', index = False)
+#    dbgapDF.to_csv('before_add_parents.csv', index = False)
     
     dbgapDF['Include_SSM'] = 'Yes'
     dbgapDF = add_parent_rows(bsi, None, dbgapDF, 1)
-    print(dbgapDF.shape)
+#    print(dbgapDF.shape)
     
     dbgapDF = add_parent_ids(dbgapDF)
-    dbgapDF.to_csv('after_add_parents.csv', index = False)    
-    print(dbgapDF.shape)
+#    dbgapDF.to_csv('after_add_parents.csv', index = False)    
+#    print(dbgapDF.shape)
     
     dbgapDF = add_family_ids(dbgapDF)
-    print(dbgapDF.shape)
-#    print(dbgapDF.head())
+#    print(dbgapDF.shape)
+
     dbgapDF = add_twin_ids(dbgapDF)
-    print(dbgapDF.shape)
+#    print(dbgapDF.shape)
     
     ######################################
     #   
@@ -484,10 +539,10 @@ def main():
                 '4a_Pedigree_DS.txt', 
                 '5a_SubjectPhenotypes_DS.txt', 
                 '6a_SampleAttributes_DS.txt']
-    dbgapDF.to_csv('final_with_dups.csv')
+#    dbgapDF.to_csv('final_with_dups.csv')
 
     dbgapDF = remove_duplicates(dbgapDF)
-    print(dbgapDF.shape)
+#    print(dbgapDF.shape)
     
     check_duplicates(dbgapDF)
     dbgapDF.to_csv('final.csv')
